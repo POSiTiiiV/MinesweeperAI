@@ -1,7 +1,7 @@
 /.idea
 /.venv
-/oldimages
-/win98images
-/winXPimages
+/images
 /__pycache__
+__pycache__/
 *.png
+*pyc
