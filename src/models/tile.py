@@ -1,15 +1,13 @@
 import pyautogui
 
 class Tile:
-    def __init__(self, value: int | str, pos: tuple[int, int], matrix_pos: tuple[int, int]) -> None:
+    def __init__(self, value: int, pos: tuple[int, int], matrix_pos: tuple[int, int]) -> None:
         self.value = value
-        self.is_num_tile = True if value not in (0, '_', 'F') else False
-        self.is_hidden = True if value in ('_', 'F') else False
+        self.flagged = False
         self.pos_x = pos[0]
         self.pos_y = pos[1]
         self.row = matrix_pos[0]
         self.col = matrix_pos[1]
-        self.satisfied = False
         self.neighbours = {
             'north-west': None,
             'north': None,
@@ -20,44 +18,55 @@ class Tile:
             'south-west': None,
             'west': None
         }
+        self.n_neighbours = 0
+        self.hidden_neighbours = set()
+        self.flagged_neighbours = set()
+
+    @property
+    def numbered(self) -> bool:
+        return self.value is not None and self.value != 0
     
-    def look_around_for_flags(self) -> list:
-        flags_around_tile = []
-        for neighbour_tile in list(self.neighbours.values()):
-            if neighbour_tile is not None and neighbour_tile.value == 'F':
-                flags_around_tile.append(neighbour_tile)
-        
-        return flags_around_tile
+    @property
+    def hidden(self) -> bool:
+        return self.value is None
 
+    @property
+    def satisfied(self) -> bool:
+        return self.value == self.n_flagged_neighbours
+    
+    @property
+    def n_hidden_neighbours(self) -> int:
+        return len(self.hidden_neighbours)
+    
+    @property
+    def n_flagged_neighbours(self) -> int:
+        return len(self.flagged_neighbours)
+
+    @property
+    def satisfiable(self) -> bool:
+        """Check if tile can be satisfied"""
+        return self.value == self.n_hidden_neighbours + self.n_flagged_neighbours
+    
     def flag_it(self) -> None:
-        if self.value != 'F':
-            pyautogui.click(self.pos_x, self.pos_y, button='right')
-            self.value = 'F'
-            self.is_hidden = True
-            self.is_num_tile = False
+        pyautogui.click(self.pos_x, self.pos_y, button='right')
+        self.value = None
+        self.flagged = True
 
-    def is_satisfied(self) -> bool:
-        if self.value == 0:
-            return True
-        flag_around_tile = self.look_around_for_flags()
-        if self.value == len(flag_around_tile):
-            self.satisfied = True
-            return True
-        return False
-        
-    def can_be_satisfied(self) -> bool:
-        list_of_unopened_neighbours = self.look_for_unopened_neighbours()
-        if self.value == len(list_of_unopened_neighbours):
-            for neighbour in list_of_unopened_neighbours:
+    def on_reveal(self) -> None:
+        for neighbour in self.neighbours.values():
+            if neighbour and self in neighbour.hidden_neighbours:
+                neighbour.hidden_neighbours.remove(self)
+
+    def on_flag(self) -> None:
+        for neighbour in self.neighbours.values():
+            if neighbour and self in neighbour.flagged_neighbours:
+                neighbour.flagged_neighbours.remove(self)
+    
+    def satisfy_tile(self) -> None:
+        """Flag neighbors to satisfy the tile"""
+        for neighbour in list(self.hidden_neighbours):
+            if not neighbour.flagged:
                 neighbour.flag_it()
-            
-        return self.is_satisfied()
+                self.hidden_neighbours.remove(neighbour)
+                self.flagged_neighbours.add(neighbour)
 
-    def look_for_unopened_neighbours(self) -> list:
-        list_of_neighbours = list(self.neighbours.values())
-        list_of_unopened_neighbours = []
-        for neighbour in list_of_neighbours:
-            if neighbour is not None and neighbour.is_hidden:
-                list_of_unopened_neighbours.append(neighbour)
-
-        return list_of_unopened_neighbours

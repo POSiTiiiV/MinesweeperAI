@@ -1,6 +1,6 @@
 import pyautogui
 import sys
-from queue import Queue
+from queue import PriorityQueue
 from random import randrange, shuffle
 from ..models.grid import Grid
 from ..models.tile import Tile
@@ -39,10 +39,22 @@ def click_random_tiles_to_vicotry(grid: Grid) -> None:
     else:  
         print("YAY WE WON!(or you pressed spacebar)")
 
-def update_active_tiles(changed_tiles: list, active_tiles: Queue):
-    for tile in changed_tiles:
-        if tile.is_num_tile:
-            active_tiles.put(tile) 
+def update_active_tiles(opened_tiles: list, active_tiles: PriorityQueue):
+    for tile in opened_tiles:
+        if tile.numbered:
+            # Assign priority based on tile status
+            # Lower number = higher priority
+            if tile.satisfied:
+                priority = 0  # Highest priority - already satisfied
+            elif tile.satisfiable:
+                priority = 1  # High priority - can be satisfied now
+            else:
+                priority = 2  # Normal priority - needs more information
+            
+            # Add to priority queue with (priority, unique_id, tile)
+            # unique_id ensures consistent ordering when priorities are equal
+            unique_id = id(tile)  # Use object id as tie-breaker
+            active_tiles.put((priority, unique_id, tile))
 
 def update_game_status():
     won, lost = check_game_status()
@@ -52,34 +64,40 @@ def update_game_status():
     if won:
         we_won()
 
-def open_random_tiles(active_tiles: Queue, grid: Grid, just_started: bool) -> None:
-    if just_started:
-        # first open 2-4 corner tiles
-        for _ in range(randrange(2, 5)):
-            r_tile = active_tiles.get()
-            pyautogui.click(r_tile.pos_x, r_tile.pos_y)
-            update_game_status()
+def open_corner_tiles(corner_tiles: list[Tile], grid: Grid):
+    n_opened_tiles = 0
+    opened_tiles = []
+    # first open 2-4 corner tiles
+    for tile in corner_tiles:
+        pyautogui.click(tile.pos_x, tile.pos_y)
+        update_game_status()
         pyautogui.moveTo(10, 10)
-        changed_count, changed_tiles = grid.update_grid()
-    else:
-        changed_count = 0
-        changed_tiles = []
+        new_n_opened_tiles, new_opened_tiles = grid.update_grid()
+        n_opened_tiles += new_n_opened_tiles
+        opened_tiles.extend(new_opened_tiles)
     
-    while changed_count < 5:
+    return n_opened_tiles, opened_tiles
+    
+def open_random_tiles(active_tiles: PriorityQueue, grid: Grid) -> None:
+    print("opening random tiles")
+    n_opened_tiles = 0
+    opened_tiles = []
+    
+    while n_opened_tiles < 5:
         rows = grid.rows
         cols = grid.cols
         r_row, r_col = randrange(rows), randrange(cols)
         r_tile = grid.tiles[r_row][r_col]
-        while not r_tile.is_hidden:
+        while not r_tile.hidden:
             r_row, r_col = randrange(rows), randrange(cols)
             r_tile = grid.tiles[r_row][r_col]
         pyautogui.click(r_tile.pos_x, r_tile.pos_y)
         update_game_status()
         pyautogui.moveTo(10, 10)
-        new_changed_count, new_changed_tiles = grid.update_grid()
-        changed_count += new_changed_count
-        changed_tiles.extend(new_changed_tiles)
-    update_active_tiles(changed_tiles, active_tiles)
+        new_n_opened_tiles, new_opened_tiles = grid.update_grid()
+        n_opened_tiles += new_n_opened_tiles
+        opened_tiles.extend(new_opened_tiles)
+    update_active_tiles(opened_tiles, active_tiles)
 
 def explore_satisfied_tile(tile: Tile):
     """Shift-click on a satisfied tile to reveal adjacent tiles."""
@@ -89,22 +107,24 @@ def explore_satisfied_tile(tile: Tile):
 
 def try_satisfy_tile(tile: Tile, grid: Grid) -> tuple[list, bool]:
     """Try to satisfy a tile and return changed tiles and success status."""
-    if tile.can_be_satisfied():
+    if tile.satisfiable:
+        tile.satisfy_tile()
         explore_satisfied_tile(tile)
         update_game_status()
         pyautogui.moveTo(10, 10)
-        _, changed_tiles = grid.update_grid()
-        return changed_tiles, True
+        _, opened_tiles = grid.update_grid()
+        return opened_tiles, True
     return [], False
 
 def we_won():
     sys.exit("No way we won right?")
 
 def start():
-    active_tiles = Queue()
+    # Use PriorityQueue instead of Queue
+    active_tiles = PriorityQueue()
     grid = Grid.from_game_window()
     
-    # Add corner tiles to queue
+    # Add corner tiles to queue with normal priority
     corner_tiles = [
         grid.tiles[0][0], 
         grid.tiles[0][grid.cols-1], 
@@ -112,51 +132,30 @@ def start():
         grid.tiles[grid.rows-1][grid.cols-1]
     ]
     shuffle(corner_tiles)
-    for tile in corner_tiles:
-        active_tiles.put(tile)
+    num = randrange(2, 5) # 2 to 4 corners
+    n_opened_tiles, opened_tiles = open_corner_tiles(corner_tiles[:num+1], grid)
+    update_active_tiles(opened_tiles, active_tiles)
+    if n_opened_tiles < 5:
+        open_random_tiles(active_tiles, grid)
 
-    open_random_tiles(active_tiles, grid, True)
-
-    marked_tile = None  # Track tile that made no progress
-    progress_made = False  # Track if we've added new tiles to queue
 
     while not active_tiles.empty():
-        tile = active_tiles.get()
+        priority, _, tile = active_tiles.get()
+
+        if priority == 2: # top priority was normal, i.e., no tile that can be satisfied => we should open random tiles
+            open_random_tiles(active_tiles, grid)
         
-        # If we see the marked tile again and no progress was made, we're stuck
-        if marked_tile and tile == marked_tile and not progress_made:
-            print("No progress detected, opening random tiles...")
-            open_random_tiles(active_tiles, grid, False)
-            marked_tile = None  # Reset marker
-            progress_made = False  # Reset progress flag
-            continue
-        
-        tile_made_progress = False
-        
-        if tile.is_satisfied():
+        if tile.satisfied:
             explore_satisfied_tile(tile)
             update_game_status()
             pyautogui.moveTo(10, 10)
-            _, changed_tiles = grid.update_grid()
-            if changed_tiles:
-                update_active_tiles(changed_tiles, active_tiles)
-                tile_made_progress = True
+            _, opened_tiles = grid.update_grid()
+            if opened_tiles:
+                update_active_tiles(opened_tiles, active_tiles)
         else:
-            changed_tiles, satisfied = try_satisfy_tile(tile, grid)
-            if satisfied and changed_tiles:
-                update_active_tiles(changed_tiles, active_tiles)
-                tile_made_progress = True
-        
-        if tile_made_progress:
-            progress_made = True  # We made progress globally
-            marked_tile = None    # Clear the marker since we progressed
-        else:
-            # Put tile back and mark it if we don't have a marker yet
-            if not tile.satisfied:
-                active_tiles.put(tile)
-            if marked_tile is None:
-                marked_tile = tile
-                progress_made = False  # Reset progress tracking for new cycle
+            opened_tiles, satisfied = try_satisfy_tile(tile, grid)
+            if satisfied and opened_tiles:
+                update_active_tiles(opened_tiles, active_tiles)
     
     print("Active tiles empty - game likely completed or stuck")
 

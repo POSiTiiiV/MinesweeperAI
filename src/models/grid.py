@@ -50,14 +50,15 @@ class Grid:
                     # Check if it's an unopened tile
                     color2 = grid_img.getpixel((init_left + 1, init_top + 1))
                     if distance(color2, (255, 255, 255)) < distance(color2, closest):
-                        obj = Tile('_', (click_x, click_y), (i, j))
+                        obj = Tile(None, (click_x, click_y), (i, j))
                     else:
                         obj = Tile(val, (click_x, click_y), (i, j))
                 elif val == 7:
                     # Check if it's a flag
                     color2 = grid_img.getpixel((init_left + 4, init_top + 4))
                     if distance(color2, (255, 0, 0)) < distance(color2, closest):
-                        obj = Tile('F', (click_x, click_y), (i, j))
+                        obj = Tile(None, (click_x, click_y), (i, j))
+                        obj.flagged = True
                     else:
                         obj = Tile(val, (click_x, click_y), (i, j))
                 else:
@@ -71,12 +72,12 @@ class Grid:
         grid_obj.connect_neighbours()
         
         return grid_obj
-    
+
     def update_grid(self) -> tuple[int, list[Tile]]:
-        """Update the grid and return the number of tiles that changed."""
+        """Update the grid and return the number of tiles that opened."""
         _, _, _, _, grid_img = find_grid(*find_game_window())
-        changed_count = 0
-        tiles_changed = []
+        n_opened_tiles = 0
+        tiles_opened = []
         
         for i in range(self.rows):
             for j in range(self.cols):
@@ -87,40 +88,46 @@ class Grid:
                 val, closest = color_mapping(color)
                 tile = self.tiles[i][j]
                 
-                # Check for unopened tile (val 0)
+                # Check for unopened tile
                 if val == 0:
                     color2 = grid_img.getpixel((init_left + 1, init_top + 1))
-                    is_unopened = distance(color2, (255, 255, 255)) < distance(color2, closest)
-                    if is_unopened and not tile.is_hidden:
+                    opened = distance(color2, (255, 255, 255)) > distance(color2, closest)
+                    if not opened and tile.hidden:
                         continue  # No change needed
-                    elif not is_unopened and tile.is_hidden:
-                        tile.is_hidden = False
-                        tiles_changed.append(tile)
-                        changed_count += 1
-                
-                # Check for flag (val 7)
+                    elif not opened and tile.value == 0: # should never enter this
+                        tile.value = None
+                        tile.hidden = True
+                        print("why are we unopening opened tiles")
+                    elif opened:
+                        tile.value = 0
+                        tiles_opened.append(tile)
+                        n_opened_tiles += 1
+                        tile.on_reveal()
+                # Check for flag
                 elif val == 7:
                     color2 = grid_img.getpixel((init_left + 4, init_top + 4))
                     is_flag = distance(color2, (255, 0, 0)) < distance(color2, closest)
-                    if is_flag and tile.value == 'F' and tile.is_hidden:
+                    if is_flag and tile.flagged:
                         continue  # No change needed
-                    elif is_flag and (tile.value != 'F' or not tile.is_hidden):
-                        tile.value = 'F'
-                        tile.is_num_tile = False
-                        tile.is_hidden = True
-                        tiles_changed.append(tile)
-                        changed_count += 1
-                
-                # Handle numbered tiles
+                    elif is_flag and not tile.flagged:
+                        tile.value = None
+                        tile.flagged = True
+                        tile.on_flag
+                    else:
+                        tile.value = 7
+                        tiles_opened.append(tile)
+                        n_opened_tiles += 1
+                        revealed = True
+                # Handle other numbered tiles
                 else:
-                    if tile.value != val:
+                    if tile.value is None: # i.e. it was not a numbered tile earlier
                         tile.value = val
-                        tile.is_num_tile = True
-                        tile.is_hidden = False  # Revealed tiles are not hidden
-                        tiles_changed.append(tile)
-                        changed_count += 1
+                        tiles_opened.append(tile)
+                        n_opened_tiles += 1
+                        tile.on_reveal()
+                    
         
-        return changed_count, tiles_changed
+        return n_opened_tiles, tiles_opened
 
     def connect_neighbours(self) -> None:
         directions = [
@@ -135,26 +142,28 @@ class Grid:
         ]
         for i in range(self.rows):
             for j in range(self.cols):
-                for name, di, dj in directions:
-                    ni, nj = i + di, j + dj
+                for d_name, d_i, d_j in directions:
+                    ni, nj = i + d_i, j + d_j
                     if 0 <= ni < self.rows and 0 <= nj < self.cols:
-                        self.tiles[i][j].neighbours[name] = self.tiles[ni][nj]
+                        self.tiles[i][j].neighbours[d_name] = self.tiles[ni][nj]
+                        self.tiles[i][j].n_neighbours += 1
+                        self.tiles[i][j].hidden_neighbours.add(self.tiles[ni][nj])
     
-    def reconnect_neighbours(self, tile: Tile) -> None:
-        directions = [
-            ('north-west', -1, -1),
-            ('north', -1, 0),
-            ('north-east', -1, 1),
-            ('east', 0, 1),
-            ('south-east', 1, 1),
-            ('south', 1, 0),
-            ('south-west', 1, -1),
-            ('west', 0, -1)
-        ]
-        for name, di, dj in directions:
-            ni, nj = tile.row + di, tile.col + dj
-            if 0 <= ni < self.rows and 0 <= nj < self.cols:
-                tile.neighbours[name] = self.tiles[ni][nj]
+    # def reconnect_neighbours(self, tile: Tile) -> None:
+    #     directions = [
+    #         ('north-west', -1, -1),
+    #         ('north', -1, 0),
+    #         ('north-east', -1, 1),
+    #         ('east', 0, 1),
+    #         ('south-east', 1, 1),
+    #         ('south', 1, 0),
+    #         ('south-west', 1, -1),
+    #         ('west', 0, -1)
+    #     ]
+    #     for name, di, dj in directions:
+    #         ni, nj = tile.row + di, tile.col + dj
+    #         if 0 <= ni < self.rows and 0 <= nj < self.cols:
+    #             tile.neighbours[name] = self.tiles[ni][nj]
 
     def draw_rectangles(self) -> None:
         # Color mapping for tile values
