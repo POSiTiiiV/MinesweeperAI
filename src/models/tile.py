@@ -4,23 +4,11 @@ class Tile:
     def __init__(self, value: int, pos: tuple[int, int], matrix_pos: tuple[int, int]) -> None:
         self.value = value
         self.flagged = False
-        self.pos_x = pos[0]
-        self.pos_y = pos[1]
-        self.row = matrix_pos[0]
-        self.col = matrix_pos[1]
-        self.neighbours = {
-            'north-west': None,
-            'north': None,
-            'north-east': None,
-            'east': None,
-            'south-east': None,
-            'south': None,
-            'south-west': None,
-            'west': None
-        }
-        self.n_neighbours = 0
-        self.hidden_neighbours = set()
-        self.flagged_neighbours = set()
+        self.pos_x, self.pos_y = pos
+        self.row, self.col = matrix_pos
+        self.neighbours = list['Tile']()
+        self.hidden_neighbours = set['Tile']()
+        self.flagged_neighbours = set['Tile']()
 
     @property
     def numbered(self) -> bool:
@@ -33,6 +21,10 @@ class Tile:
     @property
     def satisfied(self) -> bool:
         return self.value == self.n_flagged_neighbours
+    
+    @property
+    def n_neighbours(self) -> int:
+        return len(self.neighbours)
     
     @property
     def n_hidden_neighbours(self) -> int:
@@ -49,18 +41,16 @@ class Tile:
     
     def flag_it(self) -> None:
         pyautogui.click(self.pos_x, self.pos_y, button='right')
-        self.value = None
-        self.flagged = True
 
     def on_reveal(self) -> None:
-        for neighbour in self.neighbours.values():
-            if neighbour and self in neighbour.hidden_neighbours:
+        for neighbour in self.neighbours:
+            if self in neighbour.hidden_neighbours:
                 neighbour.hidden_neighbours.remove(self)
 
     def on_flag(self) -> None:
-        for neighbour in self.neighbours.values():
-            if neighbour and self in neighbour.flagged_neighbours:
-                neighbour.flagged_neighbours.remove(self)
+        for neighbour in self.neighbours:
+            if self not in neighbour.flagged_neighbours:
+                neighbour.flagged_neighbours.add(self)
     
     def satisfy_tile(self) -> None:
         """Flag neighbors to satisfy the tile"""
