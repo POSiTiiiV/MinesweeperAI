@@ -1,6 +1,6 @@
 import pygame
 from random import shuffle
-from tile import Tile
+from minesweeper.tile import Tile
 
 
 class Grid:
@@ -26,11 +26,6 @@ class Grid:
             grid.append(temp)
         grid_obj = cls(rows, cols, tile_size, grid, game_window, n_bombs, buffer)
         grid_obj.connect_neighbours()
-
-        all_tiles = [tile for row in grid for tile in row]
-        bomb_tiles = grid_obj.place_bombs(all_tiles)
-
-        grid_obj.set_numbers(all_tiles, bomb_tiles)
 
         return grid_obj
 
@@ -68,20 +63,19 @@ class Grid:
         
         return bomb_tiles
     
-    def set_numbers(self, all_tiles:list[Tile], bomb_tiles: list[Tile]) -> None:
+    def set_numbers(self, all_tiles: list[Tile], bomb_tiles: list[Tile]) -> None:
+        # First, set all non-bomb tiles to 0
         for tile in all_tiles:
-            if tile in bomb_tiles:
-                for neighbour in tile.neighbours:
-                    if neighbour.value is None and neighbour not in bomb_tiles:
-                        neighbour.value = 1
-                    elif neighbour.value is not None and neighbour.value >= 1:
-                        neighbour.value += 1
-            elif tile.value is None:
+            if tile not in bomb_tiles:
                 tile.value = 0
+        
+        # Then increment neighbors of bomb tiles
+        for bomb in bomb_tiles:
+            bomb.value = None  # Ensure bombs have None value
+            for neighbor in bomb.neighbours:
+                if neighbor not in bomb_tiles:
+                    neighbor.value += 1
   
-    # def show_grid(self) -> None:
-    #     im = Image.open("grid.png")
-    #     im.show()
 
     def print_grid(self) -> None:
         for i in range(self.rows):

@@ -88,31 +88,39 @@ class Tile:
             ))
             game_window.blit(text_surface, text_rect)
 
-    def reveal(self, game_window: pygame.Surface) -> None:
+    def reveal(self, game_window: pygame.Surface) -> bool:
         if not self.is_hidden:
-            return  # Already revealed
+            return  False   # Already revealed
 
         queue = [self]
         visited = set()
+        bomb_revealed = False
 
         while queue:
             tile = queue.pop()
             if tile in visited:
                 continue
+            if tile.is_bomb:
+                bomb_revealed = True
             visited.add(tile)
             tile.is_hidden = False
+            self.on_reveal()
             tile.draw(game_window)
 
             if tile.value == 0:
                 for neighbor in tile.neighbours:
                     if neighbor.is_hidden and neighbor not in visited:
                         queue.append(neighbor)
+        
+        return bomb_revealed
 
     def flag(self, game_window: pygame.Surface) -> None:
         if self.is_flagged:
             self.is_flagged = False
+            self.remove_flag()
         else:
             self.is_flagged = True
+            self.on_flag()
         self.draw(game_window)
 
     def on_reveal(self) -> None:
@@ -124,6 +132,11 @@ class Tile:
         for neighbour in self.neighbours:
             if self not in neighbour.flagged_neighbours:
                 neighbour.flagged_neighbours.add(self)
+
+    def remove_flag(self) -> None:
+        for neighbour in self.neighbours:
+            if self in neighbour.flagged_neighbours:
+                neighbour.flagged_neighbours.remove(self)
     
     def satisfy_tile(self) -> None:
         """Flag neighbors to satisfy the tile"""

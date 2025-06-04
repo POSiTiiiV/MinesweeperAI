@@ -1,9 +1,6 @@
-from src.ai.solver import start
-from src.utils.game_utils import restart_game
+from minesweeper.game import MinesweeperGame
 
 
 if __name__ == "__main__":
-    restart_game()
-    start()
-
-    # print_grid(grid, rows, cols)
+    game = MinesweeperGame()
+    game.run()
