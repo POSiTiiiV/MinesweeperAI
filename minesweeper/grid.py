@@ -4,8 +4,36 @@ from minesweeper.tile import Tile
 
 
 class Grid:
-    def __init__(self, rows: int, cols: int, tile_size: int, tiles: list[list[Tile]], 
+    """
+    Grid class for Minesweeper game.
+
+    This class manages the grid of tiles for a Minesweeper game, handling the creation,
+    initialization, bomb placement, and rendering of the game board.
+    The Grid class contains methods for:
+    - Creating and initializing the grid
+    - Connecting neighboring tiles
+    - Placing bombs randomly
+    - Setting numeric values for tiles based on adjacent bombs
+    - Drawing the grid to the game window
+    The grid system uses a 2D array of Tile objects, with each tile representing
+    a cell in the Minesweeper board that can contain a bomb, a number, or be empty.
+    """
+    def __init__(self, rows: int, cols: int, tile_size: int, tiles: list[list[Tile]],
                  game_window: pygame.Surface, n_bombs: int, buffer: int, y_offset: int = 0):
+        """
+        Initialize a Grid object representing the Minesweeper game grid.
+
+        Args:
+            rows (int): Number of rows in the grid.
+            cols (int): Number of columns in the grid.
+            tile_size (int): Size of each tile in pixels.
+            tiles (list[list[Tile]]): 2D list containing Tile objects for the grid.
+            game_window (pygame.Surface): Pygame surface to render the grid on.
+            n_bombs (int): Number of bombs in the grid.
+            buffer (int): Padding/margin between tiles in pixels.
+            y_offset (int, optional): Vertical offset for rendering the grid, used for placing
+                                     the grid below UI elements like the top strip. Defaults to 0.
+        """
         self.game_window = game_window
         self.tiles = tiles
         self.rows = rows
@@ -17,9 +45,28 @@ class Grid:
 
     @classmethod
     def make_grid(cls, game_window, rows, cols, tile_size, n_bombs, buffer, y_offset=0, x_offset=0):
+        """
+        Factory method to create a new grid instance with initialized tiles.
+        This handles the grid creation, tile positioning, and neighbor connections.
+        
+        Args:
+            game_window (pygame.Surface): Pygame surface where the grid will be drawn
+            rows (int): Number of rows in the grid
+            cols (int): Number of columns in the grid
+            tile_size (int): Size of each tile in pixels
+            n_bombs (int): Number of bombs to place on the grid
+            buffer (int): Space between tiles in pixels for visual separation
+            y_offset (int, optional): Vertical offset from the top of the window,
+                                     used for placing the grid below UI elements. Defaults to 0.
+            x_offset (int, optional): Horizontal offset from the left of the window,
+                                     used for centering the grid. Defaults to 0.
+            
+        Returns:
+            tuple: (Grid object, list of all tiles) - The initialized grid and a flat list of all tiles
+        """
         # Create a grid of tiles
-        tiles = [[None for _ in range(cols)] for _ in range(rows)]
-        all_tiles = []
+        tiles: list[list[Tile]] = [[None for _ in range(cols)] for _ in range(rows)]
+        all_tiles = list[Tile]()
         
         for r in range(rows):
             for c in range(cols):
@@ -38,6 +85,17 @@ class Grid:
         return grid_obj, all_tiles
 
     def draw_grid(self):
+        """
+        Draw the entire grid to the game window.
+        
+        This method:
+        1. Fills the entire game area with a background color
+        2. Draws all individual tiles
+        3. Updates the display to show changes
+        
+        The update region covers the entire game area below the top strip
+        to prevent black strips from appearing on edges.
+        """
         # Fill the entire game area with background color
         pygame.draw.rect(
             self.game_window,
@@ -58,6 +116,18 @@ class Grid:
                              self.game_window.get_height() - self.y_offset)])
 
     def connect_neighbours(self) -> None:
+        """
+        Connect each tile with its neighboring tiles.
+        
+        This method:
+        1. Defines all 8 possible directions (N, NE, E, SE, S, SW, W, NW)
+        2. For each tile, finds valid neighbors in those directions
+        3. Adds references to neighboring tiles in each tile's neighbors list
+        4. Initializes the hidden_neighbours set for tracking unrevealed neighbors
+        
+        This establishes the connections needed for revealing adjacent tiles
+        and calculating tile values based on neighboring bombs.
+        """
         directions = [
             (-1, -1), # north-west
             (-1, 0),  # north
@@ -77,6 +147,20 @@ class Grid:
                         self.tiles[i][j].hidden_neighbours.add(self.tiles[ni][nj])
 
     def place_bombs(self, all_tiles: list[Tile]) -> list[Tile]:
+        """
+        Randomly place bombs on the grid.
+        
+        Args:
+            all_tiles (list[Tile]): A flat list of all tiles in the grid
+            
+        Returns:
+            list[Tile]: List of tiles that have bombs placed on them
+            
+        This method:
+        1. Shuffles the list of tiles to randomize bomb placement
+        2. Takes the first n_bombs tiles and marks them as bombs
+        3. Returns the list of bomb tiles for further processing
+        """
         shuffle(all_tiles)
         bomb_tiles = all_tiles[:self.n_bombs]
         for tile in bomb_tiles:
@@ -85,6 +169,21 @@ class Grid:
         return bomb_tiles
     
     def set_numbers(self, all_tiles: list[Tile], bomb_tiles: list[Tile]) -> None:
+        """
+        Set the numeric values for all non-bomb tiles based on adjacent bombs.
+        
+        Args:
+            all_tiles (list[Tile]): A flat list of all tiles in the grid
+            bomb_tiles (list[Tile]): List of tiles with bombs
+            
+        This method:
+        1. Sets all non-bomb tiles to have value 0 initially
+        2. For each bomb, increments the value of all its non-bomb neighbors
+        3. Ensures bomb tiles have a value of None
+        
+        After this method runs, each non-bomb tile will have a value equal to
+        the number of adjacent bomb tiles (0-8).
+        """
         # First, set all non-bomb tiles to 0
         for tile in all_tiles:
             if tile not in bomb_tiles:
@@ -98,66 +197,16 @@ class Grid:
                     neighbor.value += 1
 
     def print_grid(self) -> None:
+        """
+        Print a text representation of the grid to the console.
+        
+        This is a debugging method that prints the value of each tile
+        in a grid format, making it easier to visualize the grid state
+        during development and testing.
+        """
         for i in range(self.rows):
             for j in range(self.cols):
                 print(self.tiles[i][j].value, end=' ')
             print('\n')
         print('\n')
 
-# def update_grid_from_tile(tile: Tile) -> set[Tile]:
-#     grid_left, grid_top, _, _, grid_img = find_grid(*find_game_window())
-#     tiles_to_update = set()
-#     affected_tiles = {tile}
-#     for _tile in tile.neighbours:
-#         affected_tiles.add(_tile)
-#     visited = set()  # Track tiles we've already processed
-
-#     while affected_tiles:
-#         current_tile = affected_tiles.pop()
-#         pos = (current_tile.row, current_tile.col)
-#         if pos in visited:
-#             continue  # Skip if already processed
-#         visited.add(pos)
-
-#         x = current_tile.pos_x - grid_left + 3
-#         y = current_tile.pos_y - grid_top + 5
-#         color = grid_img.getpixel((x, y))
-#         val, closest = color_mapping(color)
-
-#         if val == 0:  # Possibly opened tile
-#             x2 = current_tile.pos_x - grid_left - 8
-#             y2 = current_tile.pos_y - grid_top - 8
-#             color2 = grid_img.getpixel((x2, y2))
-#             opened = distance(color2, (255, 255, 255)) > distance(color2, closest)
-#             if opened and current_tile.hidden:
-#                 current_tile.value = 0
-#                 current_tile.on_reveal()
-#                 affected_tiles.update(current_tile.neighbours)
-#                 tiles_to_update.update(current_tile.neighbours)
-#         elif val == 7:  # Possibly flagged
-#             x2 = current_tile.pos_x - grid_left - 5
-#             y2 = current_tile.pos_y - grid_top - 5
-#             color2 = grid_img.getpixel((x2, y2))
-#             is_flag = distance(color2, (255, 0, 0)) < distance(color2, closest)
-#             if is_flag and not current_tile.flagged:
-#                 current_tile.value = None
-#                 current_tile.flagged = True
-#                 current_tile.on_flag()
-#                 tiles_to_update.add(current_tile)
-#                 affected_tiles.update(current_tile.neighbours)
-#                 tiles_to_update.update(current_tile.neighbours)
-#             elif not current_tile.flagged:
-#                 current_tile.value = 7
-#                 current_tile.on_reveal()
-#                 tiles_to_update.add(current_tile)
-#                 affected_tiles.update(current_tile.neighbours)
-#                 tiles_to_update.update(current_tile.neighbours)
-#         else:  # Numbered tile
-#             if current_tile.value is None:
-#                 current_tile.value = val
-#                 current_tile.on_reveal()
-#                 tiles_to_update.add(current_tile)
-#                 affected_tiles.update(current_tile.neighbours)
-#                 tiles_to_update.update(current_tile.neighbours)
-
-#     return tiles_to_update

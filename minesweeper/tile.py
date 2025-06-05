@@ -1,6 +1,16 @@
 import pygame
 
+
 class Tile:
+    """
+    Tile class for Minesweeper game.
+
+    This class represents a single tile in the Minesweeper game grid.
+    Each tile can be a bomb or a numbered tile indicating adjacent bombs.
+    Tiles manage their own state (hidden, revealed, flagged) and handle
+    relationships with neighboring tiles.
+    """
+    # Class variables for shared assets
     bomb_img = None
     hidden_img = None
     revealed_img = None
@@ -8,14 +18,37 @@ class Tile:
     font = None
 
     @classmethod
-    def load_assets(cls, bomb_path: str, hidden_path: str, revealed_path: str, flagged_path: str, font: pygame.font.Font):
+    def load_assets(cls, bomb_path: str, hidden_path: str, revealed_path: str,
+                     flagged_path: str, font: pygame.font.Font):
+        """
+        Load all image assets and font for the tiles.
+        This is a class method that loads shared assets once for all tile instances.
+        
+        Args:
+            bomb_path (str): Path to the bomb image
+            hidden_path (str): Path to the hidden tile image
+            revealed_path (str): Path to the revealed tile image
+            flagged_path (str): Path to the flagged tile image
+            font (pygame.font.Font): Pygame font for rendering numbers
+        """
         cls.bomb_img = pygame.image.load(bomb_path).convert()
         cls.hidden_img = pygame.image.load(hidden_path).convert()
         cls.revealed_img = pygame.image.load(revealed_path).convert()
         cls.flagged_img = pygame.image.load(flagged_path).convert()
         cls.font = font
     
-    def __init__(self, value: int | None, pos: tuple[int, int], matrix_pos: tuple[int, int], tile_size: int) -> None:
+    def __init__(self, value: int | None, pos: tuple[int, int],
+                 matrix_pos: tuple[int, int], tile_size: int) -> None:
+        """
+        Initialize a tile with its properties.
+        
+        Args:
+            value (int | None): The number value of the tile (number of adjacent bombs),
+                               or None for bomb tiles
+            pos (tuple[int, int]): Screen position (x, y) in pixels
+            matrix_pos (tuple[int, int]): Position (row, col) in the game grid
+            tile_size (int): Size of the tile in pixels
+        """
         self.value = value
         self.is_hidden = True
         self.is_flagged = False
@@ -23,36 +56,97 @@ class Tile:
         self.pos_x, self.pos_y = pos
         self.row, self.col = matrix_pos
         self.tile_size = tile_size
-        self.neighbours = list['Tile']()
-        self.hidden_neighbours = set['Tile']()
-        self.flagged_neighbours = set['Tile']()
+        self.neighbours = list['Tile']()  # List of all adjacent tiles
+        self.hidden_neighbours = set['Tile']()  # Set of adjacent tiles that are still hidden
+        self.flagged_neighbours = set['Tile']()  # Set of adjacent tiles that are flagged
 
     @property
     def is_numbered(self) -> bool:
-        return self.value is not None and self.value != 0
+        """
+        Check if this tile has a number (1-8).
+        
+        A numbered tile is a revealed non-bomb tile with a value greater than 0,
+        indicating it has at least one bomb in an adjacent tile.
+        
+        Returns:
+            bool: True if this tile has a visible number, False otherwise
+        """
+        return not self.is_hidden and not self.is_bomb and self.value > 0
     
     @property
     def is_satisfied(self) -> bool:
+        """
+        Check if the number of flagged neighbors equals this tile's value.
+        
+        A tile is "satisfied" when the player has correctly flagged exactly
+        as many neighbors as the tile's number indicates. This property is
+        used for chord operations and solving algorithms.
+        
+        Returns:
+            bool: True if the number of flagged neighbors equals this tile's value
+        """
         return self.value == self.n_flagged_neighbours
     
     @property
     def n_neighbours(self) -> int:
+        """
+        Get the total number of neighboring tiles.
+        
+        Returns:
+            int: Number of tiles adjacent to this one (usually 8, but can be less at edges)
+        """
         return len(self.neighbours)
     
     @property
     def n_hidden_neighbours(self) -> int:
+        """
+        Get the number of neighboring tiles that are still hidden.
+        
+        This property is useful for solving algorithms to determine which
+        tiles need further inspection.
+        
+        Returns:
+            int: Number of adjacent tiles that are still hidden
+        """
         return len(self.hidden_neighbours)
     
     @property
     def n_flagged_neighbours(self) -> int:
+        """
+        Get the number of neighboring tiles that are flagged as bombs.
+        
+        This property is used for chord operations and solving algorithms
+        to determine if a numbered tile's bomb requirement is satisfied.
+        
+        Returns:
+            int: Number of adjacent tiles that are flagged
+        """
         return len(self.flagged_neighbours)
 
     @property
     def is_satisfiable(self) -> bool:
-        """Check if tile can be satisfied"""
+        """
+        Check if all remaining hidden neighbors should be flagged to satisfy this tile.
+        
+        A tile is "satisfiable" when the number of hidden neighbors plus the
+        number of flagged neighbors equals the tile's value. When this is true,
+        all remaining hidden neighbors must be bombs.
+        
+        Returns:
+            bool: True if all hidden neighbors should be flagged, False otherwise
+        """
         return self.value == self.n_hidden_neighbours + self.n_flagged_neighbours
     
     def get_color(self) -> tuple[int, int, int]:
+        """
+        Get the RGB color tuple for the tile's number based on its value.
+        
+        Colors follow the standard Minesweeper scheme:
+        1: Blue, 2: Green, 3: Red, 4: Dark Blue, etc.
+        
+        Returns:
+            tuple[int, int, int]: RGB color values (0-255) for the number's color
+        """
         tile_colors = {
             0: (192, 192, 192),    # Empty opened tile
             1: (0, 0, 255),        # Blue
@@ -67,6 +161,20 @@ class Tile:
         return tile_colors[self.value]
 
     def draw(self, game_window: pygame.Surface) -> None:
+        """
+        Render the tile on the game window with appropriate visuals based on its state.
+        
+        This method draws the tile with different appearances depending on whether it's:
+        - Hidden: Shows the hidden tile image
+        - Flagged: Shows the flag image
+        - Revealed bomb: Shows the bomb image
+        - Revealed number: Shows the revealed tile with number
+        - Revealed empty: Shows the revealed tile without number
+        
+        Args:
+            game_window (pygame.Surface): The pygame surface on which to draw the tile
+        """
+
         # Determine which image to use
         if self.is_hidden:
             img = self.flagged_img if self.is_flagged else self.hidden_img
@@ -79,7 +187,7 @@ class Tile:
         scaled_img = pygame.transform.scale(img, (self.tile_size, self.tile_size))
         game_window.blit(scaled_img, (self.pos_x, self.pos_y))
         
-        # Add number text if its already revealed
+        # Add number text if it's already revealed and has a number
         if not self.is_hidden and self.is_numbered:
             text_surface = self.font.render(str(self.value), True, self.get_color())
             text_rect = text_surface.get_rect(center=(
@@ -88,9 +196,26 @@ class Tile:
             ))
             game_window.blit(text_surface, text_rect)
 
-    def reveal(self, game_window: pygame.Surface) -> bool:
+    def reveal(self, game_window: pygame.Surface, count_callback: callable['Tile', None]) -> bool:
+        """
+        Reveal this tile and potentially connected tiles with cascade effect.
+        
+        This method:
+        1. Reveals the current tile
+        2. If it's a 0-value tile, recursively reveals all adjacent tiles
+        3. Updates neighbor relationships through on_reveal()
+        4. Counts revealed tiles through the callback function
+        
+        Args:
+            game_window (pygame.Surface): The pygame surface to draw on
+            count_callback (callable['Tile', None])): Function to call when a non-bomb tile is revealed,
+                                            used to track total revealed tiles for win condition
+            
+        Returns:
+            bool: True if a bomb was revealed (game over), False otherwise
+        """
         if not self.is_hidden:
-            return  False   # Already revealed
+            return False   # Already revealed
 
         queue = [self]
         visited = set()
@@ -103,8 +228,15 @@ class Tile:
             if tile.is_bomb:
                 bomb_revealed = True
             visited.add(tile)
-            tile.is_hidden = False
-            self.on_reveal()
+            
+            # Only count the tile as revealed if it wasn't hidden before
+            if tile.is_hidden:
+                tile.is_hidden = False
+                # Call the callback to increment the counter
+                if not tile.is_bomb:
+                    count_callback(tile)  # Pass the tile to the callback
+                    
+            tile.on_reveal()
             tile.draw(game_window)
 
             if tile.value == 0:
@@ -114,35 +246,99 @@ class Tile:
         
         return bomb_revealed
 
-    def flag(self, game_window: pygame.Surface) -> None:
+    def flag(self, game_window: pygame.Surface, flag_callback: callable[['Tile', bool], None], 
+             neighbour_callback: callable['Tile', None]) -> None:
+        """
+        Toggle the flag state of this tile.
+        
+        This method:
+        1. Toggles the is_flagged property
+        2. Updates neighbor relationships through on_flag() or remove_flag()
+        3. Redraws the tile to show the new state
+        
+        Args:
+            game_window (pygame.Surface): The pygame surface to draw on
+            flag_callback (callable[['Tile', bool], None]): Function to call to track flag changes 
+                                                            takes a Tile object and a boolean (was_flagged)
+            neighbour_callback (callable[['Tile', None], None]): Function to call for each neighbor
+                                           that is affected by this change
+        """
+        was_flagged = self.is_flagged
+    
         if self.is_flagged:
             self.is_flagged = False
-            self.remove_flag()
+            self.remove_flag(neighbour_callback)
         else:
             self.is_flagged = True
-            self.on_flag()
+            self.on_flag(neighbour_callback)
+            
+        flag_callback(self, was_flagged)
+            
         self.draw(game_window)
 
-    def on_reveal(self) -> None:
+    def on_reveal(self, neighbour_callback: callable['Tile', None]) -> None:
+        """
+        Update neighbor tiles when this tile is revealed.
+        
+        This method removes this tile from all neighbors' hidden_neighbours sets,
+        maintaining accurate tracking of hidden/revealed relationships for
+        solving algorithms and cascade reveals.
+        
+        Args:
+            neighbour_callback (callable['Tile', None]): Function to call for each neighbor 
+                                                        that is affected by this change
+        """
         for neighbour in self.neighbours:
             if self in neighbour.hidden_neighbours:
                 neighbour.hidden_neighbours.remove(self)
+                neighbour_callback(neighbour)
 
-    def on_flag(self) -> None:
+    def on_flag(self, neighbour_callback: callable['Tile', None]) -> None:
+        """
+        Update neighbor tiles when this tile is flagged.
+        
+        This method adds this tile to all neighbors' flagged_neighbours sets,
+        maintaining accurate tracking of flagged tiles for chord operations
+        and solving algorithms.
+
+        Args:
+            neighbour_callback (callable['Tile', None]): Function to call for each neighbor
+                                               that is affected by this change
+        """
         for neighbour in self.neighbours:
             if self not in neighbour.flagged_neighbours:
                 neighbour.flagged_neighbours.add(self)
+                neighbour_callback(neighbour)
 
-    def remove_flag(self) -> None:
+    def remove_flag(self,  neighbour_callback: callable['Tile', None]) -> None:
+        """
+        Update neighbor tiles when this tile's flag is removed.
+        
+        This method removes this tile from all neighbors' flagged_neighbours sets,
+        maintaining accurate tracking of flagged tiles for chord operations
+        and solving algorithms.
+
+        Args:
+            neighbour_callback (callable['Tile', None]): Function to call for each neighbor
+                                               that is affected by this change
+        """
         for neighbour in self.neighbours:
             if self in neighbour.flagged_neighbours:
                 neighbour.flagged_neighbours.remove(self)
+                neighbour_callback(neighbour)
     
-    def satisfy_tile(self) -> None:
-        """Flag neighbors to satisfy the tile"""
+    def satisfy_tile(self, game_window: pygame.Surface) -> None:
+        """
+        Flag all remaining hidden neighbors to satisfy the tile's value.
+        
+        This method is used by solver algorithms when the number of hidden
+        neighbors equals the remaining unflagged bombs adjacent to this tile.
+        In this case, all hidden neighbors must be bombs and can be safely flagged.
+        
+        Note: This is primarily used by AI solvers rather than manual gameplay.
+        """
         for neighbour in list(self.hidden_neighbours):
-            if not neighbour.flagged:
-                neighbour.flag_it()
+            if not neighbour.is_flagged:
+                neighbour.flag(game_window)
                 self.hidden_neighbours.remove(neighbour)
                 self.flagged_neighbours.add(neighbour)
-

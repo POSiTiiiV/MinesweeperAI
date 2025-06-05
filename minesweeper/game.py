@@ -1,49 +1,78 @@
+"""
+Minesweeper Game Implementation
+
+This module contains the main game class and constants for the Minesweeper game.
+It handles game initialization, rendering, user input, and game logic.
+"""
 import pygame
 import os
 import time
-from minesweeper.grid import Grid
 from minesweeper.tile import Tile
+from minesweeper.grid import Grid
+from minesweeper.api import MinesweeperAPI
 
-ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
+# Game configuration constants
 ROWS, COLS = 8, 8
 N_BOMBS = 10
 BUFFER = 4  # margin/gap between tiles
 STRIP_HEIGHT = 50  # Height of the top strip
+SCREEN_WIDTH = 600  # Fixed screen width
+SCREEN_HEIGHT = 600 + STRIP_HEIGHT  # Screen height with strip
 
-# Fixed screen dimensions (regardless of grid size)
-SCREEN_WIDTH = 600
-SCREEN_HEIGHT = 600 + STRIP_HEIGHT
+# Asset directory
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
-# Calculate tile size based on available space
-# Available width = screen width - total buffer space between tiles
-# Available height = screen height - strip - total buffer space between tiles
+# Grid layout calculations
 AVAILABLE_WIDTH = SCREEN_WIDTH - (BUFFER * (COLS + 1))
 AVAILABLE_HEIGHT = SCREEN_HEIGHT - STRIP_HEIGHT - (BUFFER * (ROWS + 1))
-
-# Tile size is the minimum of the available space divided by rows/cols
-# to ensure tiles fit within both dimensions
 TILE_SIZE = min(AVAILABLE_WIDTH // COLS, AVAILABLE_HEIGHT // ROWS)
-
-# Recalculate actual width and height used by the grid
 ACTUAL_GRID_WIDTH = (TILE_SIZE * COLS) + (BUFFER * (COLS + 1))
 ACTUAL_GRID_HEIGHT = (TILE_SIZE * ROWS) + (BUFFER * (ROWS + 1))
-
-# Center the grid horizontally if needed
 GRID_X_OFFSET = (SCREEN_WIDTH - ACTUAL_GRID_WIDTH) // 2
 
 class MinesweeperGame:
+    """
+    Main game class for Minesweeper.
+    
+    This class manages the game state, handles user input, and controls
+    the rendering of the game. It integrates with the Grid and Tile classes
+    to implement the core Minesweeper gameplay.
+    """
+    
     def __init__(self):
+        """
+        Initialize the game, setting up the window, assets, and initial game state.
+        
+        This creates the game window, loads all required assets, and prepares
+        the game for the first run.
+        """
         pygame.init()
 
         self.game_window = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("MinesweeperAI")
 
-        # Add game status attribute
+        # Game state variables
         self.game_status = "playing"  # Can be "playing", "won", or "lost"
-        # Track bombs and flags
         self.bomb_count = N_BOMBS
         self.flagged_count = 0
+        self.grid = None
+        self.all_tiles = None
+        self.non_bomb_tiles_count = 0
+        self.revealed_count = 0
+        self.bombs_placed = False
 
+        # Load tile assets
+        self._load_assets()
+        
+        # Create API instance
+        self.api = MinesweeperAPI(self)
+    
+    def _load_assets(self):
+        """
+        Load all game assets including tile images, fonts and emoji faces.
+        
+        This is a private helper method called during initialization.
+        """
         # Load images and font for all tiles
         Tile.load_assets(
             bomb_path=os.path.join(ASSETS_DIR, 'bomb.png'),
@@ -64,7 +93,18 @@ class MinesweeperGame:
         # Create fonts for the counters
         self.counter_font = pygame.font.Font('freesansbold.ttf', 24)
 
+    # Main game flow methods
+    
     def run(self) -> None:
+        """
+        Start and run the main game.
+        
+        This method initializes the grid, sets up a new game,
+        and enters the main game loop.
+        
+        Returns:
+            None
+        """
         # Fill the entire window with gray background first
         self.game_window.fill((192, 192, 192))
     
@@ -86,6 +126,12 @@ class MinesweeperGame:
         return self.game_loop()
         
     def setup_new_game(self) -> None:
+        """
+        Set up a new game with fresh state.
+        
+        This resets the game state for a new game, whether it's the
+        first game or after a restart.
+        """
         # Setup a new game (for first game or after restart)
         self.grid.draw_grid()
         
@@ -100,6 +146,12 @@ class MinesweeperGame:
         self.draw_counters()
 
     def game_loop(self) -> None:
+        """
+        Run the main game loop, handling events and updates.
+        
+        This processes all user inputs, updates game state,
+        and handles rendering until the game is closed.
+        """
         run = True
         
         # Draw the initial counters
@@ -109,44 +161,51 @@ class MinesweeperGame:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     run = False
-            
+        
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     
                     # Check if restart button was clicked
                     if self.restart_rect.collidepoint(mouse_x, mouse_y):
-                        self.restart()
+                        self.api.restart_game()
                         continue
                     
                     # Adjust mouse position to account for the top strip
                     adjusted_y = mouse_y - STRIP_HEIGHT
                     
-                    # Only process mouse events on the grid if the game is still active
-                    if self.game_status == "playing" and adjusted_y >= 0:
+                    # Only process mouse events on the grid if adjusted_y is positive
+                    if adjusted_y >= 0:
                         row, col = self.get_tile_at_pos(mouse_x, adjusted_y, TILE_SIZE, BUFFER, GRID_X_OFFSET)
+                        
                         if 0 <= row < ROWS and 0 <= col < COLS:
-                            tile = self.grid.tiles[row][col]
-                            
-                            # Handle first click - place bombs
-                            if not self.bombs_placed:
-                                self.place_bombs_after_first_click(tile)
-                                self.bombs_placed = True
-                            
-                            # Handle the click
-                            self.handle_click(row, col, event.button, pygame.key.get_mods())
-                            pygame.display.flip()  # Only flip once per frame
-                            
-                            # Redraw the counters
-                            self.draw_counters()
-                            
-                            # Check for win
-                            if self.revealed_count == self.non_bomb_tiles_count:
-                                self.won()
+                            # Handle clicks through the API
+                            if event.button == 1:  # Left click
+                                mods = pygame.key.get_mods()
+                                if mods & pygame.KMOD_SHIFT:
+                                    # Chord (shift+click)
+                                    self.api.chord_tile(row, col)
+                                else:
+                                    # Regular reveal
+                                    self.api.reveal_tile(row, col)
+                            elif event.button == 3:  # Right click
+                                self.api.flag_tile(row, col)
+                                
+                        # Update the display
+                        pygame.display.flip()
+                        
+                        # Redraw the counters
+                        self.draw_counters()
 
         pygame.quit()
         return
         
     def restart(self) -> None:
+        """
+        Restart the game to a fresh state.
+        
+        This creates a new grid, resets all game variables,
+        and prepares for a new game.
+        """
         # Reset the game state without recursion
         self.grid, self.all_tiles = Grid.make_grid(
             self.game_window, 
@@ -175,73 +234,14 @@ class MinesweeperGame:
         # Draw the counters (which will update the strip area)
         self.draw_counters()
 
-    def handle_click(self, row: int, col: int, button: int, mods=0) -> None:
-        tile = self.grid.tiles[row][col]
-        
-        # Left click
-        if button == 1:
-            # Check for shift+click on revealed numbered tile
-            if mods & pygame.KMOD_SHIFT and not tile.is_hidden and tile.is_numbered:
-                # Only proceed if flagged neighbors equals tile value (safe to reveal)
-                if tile.n_flagged_neighbours == tile.value:
-                    # Reveal all non-flagged neighbors
-                    bomb_revealed = False
-                    for neighbor in tile.neighbours:
-                        if not neighbor.is_flagged and neighbor.is_hidden:
-                            # Track the previously revealed count
-                            old_revealed_count = sum(1 for t in self.all_tiles if not t.is_hidden and not t.is_bomb)
-                            
-                            if neighbor.reveal(self.game_window):
-                                bomb_revealed = True
-                            
-                            # Update revealed count based on newly revealed tiles
-                            new_revealed_count = sum(1 for t in self.all_tiles if not t.is_hidden and not t.is_bomb)
-                            self.revealed_count += (new_revealed_count - old_revealed_count)
-                    
-                    # Handle if a bomb was revealed
-                    if bomb_revealed:
-                        pygame.display.flip()
-                        self.lost()
-                        return
-                else:
-                    # If flagged neighbors don't equal tile value, do nothing special
-                    pass
-            # Regular left click
-            else:
-                # Track the previously revealed count
-                old_revealed_count = sum(1 for t in self.all_tiles if not t.is_hidden and not t.is_bomb)
-                
-                bomb_revealed = tile.reveal(self.game_window)
-                
-                # Update revealed count based on newly revealed tiles
-                new_revealed_count = sum(1 for t in self.all_tiles if not t.is_hidden and not t.is_bomb)
-                self.revealed_count += (new_revealed_count - old_revealed_count)
-                
-                if bomb_revealed:
-                    pygame.display.flip()
-                    self.lost()
-                    return
-        # Right click
-        elif button == 3:
-            # Get the previous flag state before toggling
-            was_flagged = tile.is_flagged
-            
-            # Flag the tile (this toggles the flag)
-            tile.flag(self.game_window)
-            
-            # Update flag counter based on the change
-            if was_flagged and not tile.is_flagged:
-                self.flagged_count -= 1
-            elif not was_flagged and tile.is_flagged:
-                self.flagged_count += 1
-                
-            # Update the counter display
-            self.draw_counters()
-
+    # Game state transition methods
+    
     def won(self) -> None:
         """
-        Display win screen and mark all hidden tiles as flagged.
-        Game will continue until manually restarted or closed.
+        Handle the game-won state.
+        
+        Updates the game status, flags all remaining bombs,
+        and displays a win message overlay.
         """
         print("Congratulations! You won!")
         
@@ -273,8 +273,10 @@ class MinesweeperGame:
 
     def lost(self) -> None:
         """
-        Display loss screen and reveal all bombs.
-        Game will continue until manually restarted or closed.
+        Handle the game-lost state.
+        
+        Updates the game status, reveals all bombs,
+        and displays a game over message overlay.
         """
         print("Game over! You hit a bomb.")
         
@@ -305,10 +307,20 @@ class MinesweeperGame:
         self.game_window.blit(lose_text, text_rect)
         pygame.display.flip()
 
+    # Game mechanics methods
+    
     def place_bombs_after_first_click(self, first_tile: Tile) -> list[Tile]:
         """
-        Places bombs after the first click, ensuring that the first clicked tile
-        and its neighbors don't have bombs.
+        Place bombs on the grid after the first click.
+        
+        This ensures that the first clicked tile and its neighbors
+        don't have bombs, providing a fair start to the player.
+        
+        Args:
+            first_tile (Tile): The first tile clicked by the player
+            
+        Returns:
+            list[Tile]: List of tiles containing bombs
         """
         # Place bombs AFTER first click, ensuring first_tile and neighbors are safe
         all_tiles = self.all_tiles
@@ -323,19 +335,14 @@ class MinesweeperGame:
         
         return bomb_tiles
     
-    @staticmethod
-    def get_tile_at_pos(mouse_x: int, mouse_y: int, tile_size: int, buffer: int, x_offset: int) -> tuple[int, int]:
-        # Adjust mouse position by the offset
-        adjusted_x = mouse_x - x_offset - buffer
-    
-        # Calculate tile coordinates
-        col = adjusted_x // (tile_size + buffer)
-        row = mouse_y // (tile_size + buffer)
-    
-        return row, col
+    # UI rendering methods
     
     def draw_counters(self) -> None:
-        """Draw the top strip with bomb counter, restart button, and flag counter."""
+        """
+        Draw the top strip with bomb counter, restart button, and flag counter.
+        
+        This updates the UI elements in the top strip of the game window.
+        """
         # Create a gray background for the strip
         strip_bg = pygame.Surface((SCREEN_WIDTH, STRIP_HEIGHT))
         strip_bg.fill((192, 192, 192))  # Light gray like classic Minesweeper
@@ -374,7 +381,11 @@ class MinesweeperGame:
         pygame.display.update([(0, 0, SCREEN_WIDTH, STRIP_HEIGHT)])
 
     def draw_restart_button(self) -> None:
-        """Draw the restart button at the top center of the screen."""
+        """
+        Draw the restart button with the appropriate face.
+        
+        The face changes based on game status (happy, cool, or sad).
+        """
         if self.game_status == "playing":
             # Draw the happy face
             self.game_window.blit(self.face_happy, self.restart_rect.topleft)
@@ -387,3 +398,29 @@ class MinesweeperGame:
 
         # Update the restart button area
         pygame.display.update(self.restart_rect)
+
+    # Utility methods
+    
+    @staticmethod
+    def get_tile_at_pos(mouse_x: int, mouse_y: int, tile_size: int, buffer: int, x_offset: int) -> tuple[int, int]:
+        """
+        Convert mouse coordinates to grid coordinates.
+        
+        Args:
+            mouse_x (int): Mouse x-coordinate
+            mouse_y (int): Mouse y-coordinate (already adjusted for strip height)
+            tile_size (int): Size of each tile in pixels
+            buffer (int): Space between tiles in pixels
+            x_offset (int): Horizontal offset of the grid
+            
+        Returns:
+            tuple[int, int]: (row, col) coordinates in the grid
+        """
+        # Adjust mouse position by the offset
+        adjusted_x = mouse_x - x_offset - buffer
+    
+        # Calculate tile coordinates
+        col = adjusted_x // (tile_size + buffer)
+        row = mouse_y // (tile_size + buffer)
+    
+        return row, col
