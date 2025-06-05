@@ -4,7 +4,8 @@ from minesweeper.tile import Tile
 
 
 class Grid:
-    def __init__(self, rows: int, cols: int, tile_size: int, tiles: list[list[Tile]], game_window: pygame.Surface, n_bombs: int, buffer: int):
+    def __init__(self, rows: int, cols: int, tile_size: int, tiles: list[list[Tile]], 
+                 game_window: pygame.Surface, n_bombs: int, buffer: int, y_offset: int = 0):
         self.game_window = game_window
         self.tiles = tiles
         self.rows = rows
@@ -12,29 +13,49 @@ class Grid:
         self.tile_size = tile_size
         self.n_bombs = n_bombs
         self.buffer = buffer
+        self.y_offset = y_offset  # Store the y_offset
 
     @classmethod
-    def make_grid(cls, game_window: pygame.Surface, rows: int, cols: int, tile_size: int, n_bombs: int, buffer: int) -> 'Grid':
-        grid = []
+    def make_grid(cls, game_window, rows, cols, tile_size, n_bombs, buffer, y_offset=0, x_offset=0):
+        # Create a grid of tiles
+        tiles = [[None for _ in range(cols)] for _ in range(rows)]
+        all_tiles = []
+        
         for r in range(rows):
-            temp = []
             for c in range(cols):
-                pos_x = c * (tile_size + buffer)
-                pos_y = r * (tile_size + buffer)
+                # Add buffer space between tiles and account for offsets
+                pos_x = (c * (tile_size + buffer)) + buffer + x_offset
+                pos_y = (r * (tile_size + buffer)) + buffer + y_offset
+                
+                # Create tile with calculated position
                 tile = Tile(None, (pos_x, pos_y), (r, c), tile_size)
-                temp.append(tile)
-            grid.append(temp)
-        grid_obj = cls(rows, cols, tile_size, grid, game_window, n_bombs, buffer)
+                tiles[r][c] = tile
+                all_tiles.append(tile)
+        
+        grid_obj = cls(rows, cols, tile_size, tiles, game_window, n_bombs, buffer, y_offset)
         grid_obj.connect_neighbours()
-
-        return grid_obj
+        
+        return grid_obj, all_tiles
 
     def draw_grid(self):
-        self.game_window.fill((192, 192, 192))
+        # Fill the entire game area with background color
+        pygame.draw.rect(
+            self.game_window,
+            (192, 192, 192),  # Light gray background
+            (0, self.y_offset, self.game_window.get_width(), 
+             self.game_window.get_height() - self.y_offset)
+        )
+        
+        # Draw all tiles
         for row in self.tiles:
             for tile in row:
                 tile.draw(self.game_window)
-        pygame.display.flip()
+        
+        # Update the ENTIRE screen below the strip, not just the grid area
+        # This ensures no black strips remain
+        pygame.display.update([(0, self.y_offset, 
+                             self.game_window.get_width(), 
+                             self.game_window.get_height() - self.y_offset)])
 
     def connect_neighbours(self) -> None:
         directions = [
@@ -75,7 +96,6 @@ class Grid:
             for neighbor in bomb.neighbours:
                 if neighbor not in bomb_tiles:
                     neighbor.value += 1
-  
 
     def print_grid(self) -> None:
         for i in range(self.rows):

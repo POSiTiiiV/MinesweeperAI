@@ -66,7 +66,7 @@ class Tile:
         }
         return tile_colors[self.value]
 
-    def draw(self, game_window: pygame.Surface):
+    def draw(self, game_window: pygame.Surface) -> None:
         # Determine which image to use
         if self.is_hidden:
             img = self.flagged_img if self.is_flagged else self.hidden_img
