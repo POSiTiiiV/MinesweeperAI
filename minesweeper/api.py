@@ -29,7 +29,9 @@ class MinesweeperAPI:
         self.newly_unflagged_tiles = []  # Tiles unflagged in current operation
         self.neighbour_updated_tiles = [] # Tiles whose neighbors changed status
 
-    # Game state methods
+    #----------------------------------------------------------------------
+    # Game state methods - These provide information about the game state
+    #----------------------------------------------------------------------
     
     def get_game_status(self) -> str:
         """
@@ -102,7 +104,9 @@ class MinesweeperAPI:
             board_state.append(row_data)
         return board_state
     
-    # Game action methods
+    #----------------------------------------------------------------------
+    # Game action methods - These modify the game state
+    #----------------------------------------------------------------------
     
     def reveal_tile(self, row: int, col: int) -> dict[str, any]:
         """
@@ -290,7 +294,6 @@ class MinesweeperAPI:
         
         # Calculate newly revealed tiles
         newly_revealed = self.game.revealed_count - before_count
-        revealed_tiles = self.newly_revealed_tiles.copy()
         
         # Handle if a bomb was revealed
         if bomb_revealed:
@@ -440,15 +443,17 @@ class MinesweeperAPI:
             "game_status": "playing"
         }
     
-    # Helper methods
+    #----------------------------------------------------------------------
+    # Helper methods - Internal utilities for tracking and validation
+    #----------------------------------------------------------------------
     
     def _increment_revealed_count(self, tile: Tile) -> None:
         """
         Callback to increment the revealed count by 1 and track revealed tile.
         
         Args:
-            tile (Tile): The tile being revealed. If provided,
-            its position will be tracked for AI/solver use.
+            tile (Tile): The tile being revealed. Its position will be tracked
+                        for AI/solver use.
         """
         self.game.revealed_count += 1
         self.newly_revealed_tiles.append((tile.row, tile.col))
@@ -473,10 +478,9 @@ class MinesweeperAPI:
         Args:
             tile (Tile): The tile whose neighbors were updated
         """
-        if hasattr(tile, 'row') and hasattr(tile, 'col'):
-            pos = (tile.row, tile.col)
-            if pos not in self.neighbour_updated_tiles:
-                self.neighbour_updated_tiles.append(pos)
+        pos = (tile.row, tile.col)
+        if pos not in self.neighbour_updated_tiles:
+            self.neighbour_updated_tiles.append(pos)
     
     def _is_valid_position(self, row: int, col: int) -> bool:
         """

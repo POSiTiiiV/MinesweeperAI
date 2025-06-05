@@ -11,7 +11,10 @@ from minesweeper.tile import Tile
 from minesweeper.grid import Grid
 from minesweeper.api import MinesweeperAPI
 
+#----------------------------------------------------------------------
 # Game configuration constants
+#----------------------------------------------------------------------
+
 ROWS, COLS = 8, 8
 N_BOMBS = 10
 BUFFER = 4  # margin/gap between tiles
@@ -67,6 +70,10 @@ class MinesweeperGame:
         # Create API instance
         self.api = MinesweeperAPI(self)
     
+    #----------------------------------------------------------------------
+    # Initialization methods
+    #----------------------------------------------------------------------
+    
     def _load_assets(self):
         """
         Load all game assets including tile images, fonts and emoji faces.
@@ -92,8 +99,30 @@ class MinesweeperGame:
         
         # Create fonts for the counters
         self.counter_font = pygame.font.Font('freesansbold.ttf', 24)
-
+    
+    def setup_new_game(self) -> None:
+        """
+        Set up a new game with fresh state.
+        
+        This resets the game state for a new game, whether it's the
+        first game or after a restart.
+        """
+        # Setup a new game (for first game or after restart)
+        self.grid.draw_grid()
+        
+        # Reset counters
+        self.flagged_count = 0
+        self.bomb_count = N_BOMBS
+        
+        # Start with no bombs placed - wait for first click
+        self.bombs_placed = False
+        
+        # Draw the initial counter
+        self.draw_counters()
+    
+    #----------------------------------------------------------------------
     # Main game flow methods
+    #----------------------------------------------------------------------
     
     def run(self) -> None:
         """
@@ -124,27 +153,7 @@ class MinesweeperGame:
         
         self.setup_new_game()
         return self.game_loop()
-        
-    def setup_new_game(self) -> None:
-        """
-        Set up a new game with fresh state.
-        
-        This resets the game state for a new game, whether it's the
-        first game or after a restart.
-        """
-        # Setup a new game (for first game or after restart)
-        self.grid.draw_grid()
-        
-        # Reset counters
-        self.flagged_count = 0
-        self.bomb_count = N_BOMBS
-        
-        # Start with no bombs placed - wait for first click
-        self.bombs_placed = False
-        
-        # Draw the initial counter
-        self.draw_counters()
-
+    
     def game_loop(self) -> None:
         """
         Run the main game loop, handling events and updates.
@@ -198,7 +207,7 @@ class MinesweeperGame:
 
         pygame.quit()
         return
-        
+    
     def restart(self) -> None:
         """
         Restart the game to a fresh state.
@@ -233,8 +242,40 @@ class MinesweeperGame:
         
         # Draw the counters (which will update the strip area)
         self.draw_counters()
-
+    
+    #----------------------------------------------------------------------
+    # Game mechanics methods
+    #----------------------------------------------------------------------
+    
+    def place_bombs_after_first_click(self, first_tile: Tile) -> list[Tile]:
+        """
+        Place bombs on the grid after the first click.
+        
+        This ensures that the first clicked tile and its neighbors
+        don't have bombs, providing a fair start to the player.
+        
+        Args:
+            first_tile (Tile): The first tile clicked by the player
+            
+        Returns:
+            list[Tile]: List of tiles containing bombs
+        """
+        # Place bombs AFTER first click, ensuring first_tile and neighbors are safe
+        all_tiles = self.all_tiles
+        safe_tiles = [first_tile] + first_tile.neighbours
+        placeable_tiles = [tile for tile in all_tiles if tile not in safe_tiles]
+        
+        # Place bombs on the grid
+        bomb_tiles = self.grid.place_bombs(placeable_tiles)
+        
+        # Set the numbers for all tiles
+        self.grid.set_numbers(all_tiles, bomb_tiles)
+        
+        return bomb_tiles
+    
+    #----------------------------------------------------------------------
     # Game state transition methods
+    #----------------------------------------------------------------------
     
     def won(self) -> None:
         """
@@ -306,36 +347,10 @@ class MinesweeperGame:
         self.game_window.blit(overlay, (0, 0))
         self.game_window.blit(lose_text, text_rect)
         pygame.display.flip()
-
-    # Game mechanics methods
     
-    def place_bombs_after_first_click(self, first_tile: Tile) -> list[Tile]:
-        """
-        Place bombs on the grid after the first click.
-        
-        This ensures that the first clicked tile and its neighbors
-        don't have bombs, providing a fair start to the player.
-        
-        Args:
-            first_tile (Tile): The first tile clicked by the player
-            
-        Returns:
-            list[Tile]: List of tiles containing bombs
-        """
-        # Place bombs AFTER first click, ensuring first_tile and neighbors are safe
-        all_tiles = self.all_tiles
-        safe_tiles = [first_tile] + first_tile.neighbours
-        placeable_tiles = [tile for tile in all_tiles if tile not in safe_tiles]
-        
-        # Place bombs on the grid
-        bomb_tiles = self.grid.place_bombs(placeable_tiles)
-        
-        # Set the numbers for all tiles
-        self.grid.set_numbers(all_tiles, bomb_tiles)
-        
-        return bomb_tiles
-    
+    #----------------------------------------------------------------------
     # UI rendering methods
+    #----------------------------------------------------------------------
     
     def draw_counters(self) -> None:
         """
@@ -398,8 +413,10 @@ class MinesweeperGame:
 
         # Update the restart button area
         pygame.display.update(self.restart_rect)
-
+    
+    #----------------------------------------------------------------------
     # Utility methods
+    #----------------------------------------------------------------------
     
     @staticmethod
     def get_tile_at_pos(mouse_x: int, mouse_y: int, tile_size: int, buffer: int, x_offset: int) -> tuple[int, int]:

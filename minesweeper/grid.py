@@ -41,7 +41,11 @@ class Grid:
         self.tile_size = tile_size
         self.n_bombs = n_bombs
         self.buffer = buffer
-        self.y_offset = y_offset  # Store the y_offset
+        self.y_offset = y_offset
+
+    #----------------------------------------------------------------------
+    # Grid creation and initialization methods
+    #----------------------------------------------------------------------
 
     @classmethod
     def make_grid(cls, game_window, rows, cols, tile_size, n_bombs, buffer, y_offset=0, x_offset=0):
@@ -65,8 +69,8 @@ class Grid:
             tuple: (Grid object, list of all tiles) - The initialized grid and a flat list of all tiles
         """
         # Create a grid of tiles
-        tiles: list[list[Tile]] = [[None for _ in range(cols)] for _ in range(rows)]
-        all_tiles = list[Tile]()
+        tiles = [[None for _ in range(cols)] for _ in range(rows)]
+        all_tiles = []
         
         for r in range(rows):
             for c in range(cols):
@@ -83,37 +87,6 @@ class Grid:
         grid_obj.connect_neighbours()
         
         return grid_obj, all_tiles
-
-    def draw_grid(self):
-        """
-        Draw the entire grid to the game window.
-        
-        This method:
-        1. Fills the entire game area with a background color
-        2. Draws all individual tiles
-        3. Updates the display to show changes
-        
-        The update region covers the entire game area below the top strip
-        to prevent black strips from appearing on edges.
-        """
-        # Fill the entire game area with background color
-        pygame.draw.rect(
-            self.game_window,
-            (192, 192, 192),  # Light gray background
-            (0, self.y_offset, self.game_window.get_width(), 
-             self.game_window.get_height() - self.y_offset)
-        )
-        
-        # Draw all tiles
-        for row in self.tiles:
-            for tile in row:
-                tile.draw(self.game_window)
-        
-        # Update the ENTIRE screen below the strip, not just the grid area
-        # This ensures no black strips remain
-        pygame.display.update([(0, self.y_offset, 
-                             self.game_window.get_width(), 
-                             self.game_window.get_height() - self.y_offset)])
 
     def connect_neighbours(self) -> None:
         """
@@ -146,15 +119,19 @@ class Grid:
                         self.tiles[i][j].neighbours.append(self.tiles[ni][nj])
                         self.tiles[i][j].hidden_neighbours.add(self.tiles[ni][nj])
 
-    def place_bombs(self, all_tiles: list[Tile]) -> list[Tile]:
+    #----------------------------------------------------------------------
+    # Game mechanics methods
+    #----------------------------------------------------------------------
+
+    def place_bombs(self, all_tiles: list) -> list:
         """
         Randomly place bombs on the grid.
         
         Args:
-            all_tiles (list[Tile]): A flat list of all tiles in the grid
+            all_tiles (list): A flat list of all tiles in the grid
             
         Returns:
-            list[Tile]: List of tiles that have bombs placed on them
+            list: List of tiles that have bombs placed on them
             
         This method:
         1. Shuffles the list of tiles to randomize bomb placement
@@ -168,13 +145,13 @@ class Grid:
         
         return bomb_tiles
     
-    def set_numbers(self, all_tiles: list[Tile], bomb_tiles: list[Tile]) -> None:
+    def set_numbers(self, all_tiles: list, bomb_tiles: list) -> None:
         """
         Set the numeric values for all non-bomb tiles based on adjacent bombs.
         
         Args:
-            all_tiles (list[Tile]): A flat list of all tiles in the grid
-            bomb_tiles (list[Tile]): List of tiles with bombs
+            all_tiles (list): A flat list of all tiles in the grid
+            bomb_tiles (list): List of tiles with bombs
             
         This method:
         1. Sets all non-bomb tiles to have value 0 initially
@@ -196,6 +173,45 @@ class Grid:
                 if neighbor not in bomb_tiles:
                     neighbor.value += 1
 
+    #----------------------------------------------------------------------
+    # Rendering methods
+    #----------------------------------------------------------------------
+
+    def draw_grid(self):
+        """
+        Draw the entire grid to the game window.
+        
+        This method:
+        1. Fills the entire game area with a background color
+        2. Draws all individual tiles
+        3. Updates the display to show changes
+        
+        The update region covers the entire game area below the top strip
+        to prevent black strips from appearing on edges.
+        """
+        # Fill the entire game area with background color
+        pygame.draw.rect(
+            self.game_window,
+            (192, 192, 192),  # Light gray background
+            (0, self.y_offset, self.game_window.get_width(), 
+             self.game_window.get_height() - self.y_offset)
+        )
+        
+        # Draw all tiles
+        for row in self.tiles:
+            for tile in row:
+                tile.draw(self.game_window)
+        
+        # Update the ENTIRE screen below the strip, not just the grid area
+        # This ensures no black strips remain
+        pygame.display.update([(0, self.y_offset, 
+                             self.game_window.get_width(), 
+                             self.game_window.get_height() - self.y_offset)])
+
+    #----------------------------------------------------------------------
+    # Debug methods
+    #----------------------------------------------------------------------
+
     def print_grid(self) -> None:
         """
         Print a text representation of the grid to the console.
@@ -209,4 +225,3 @@ class Grid:
                 print(self.tiles[i][j].value, end=' ')
             print('\n')
         print('\n')
-
