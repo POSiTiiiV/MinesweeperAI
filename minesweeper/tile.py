@@ -162,38 +162,37 @@ class Tile:
 
     def draw(self, game_window: pygame.Surface) -> None:
         """
-        Render the tile with your custom cyan/teal and purple theme colors.
-        
-        Args:
-            game_window (pygame.Surface): The pygame surface on which to draw the tile
+        Render the tile with platform-adaptive design.
         """
-        from minesweeper.game import COLORS, TILE_BORDER_RADIUS
+        from minesweeper.game import COLORS, TILE_BORDER_RADIUS, IS_MOBILE
         
-        # Create crisp tile rectangle
+        # Create tile rectangle with platform-appropriate padding
+        padding = 2 if IS_MOBILE else 1
         tile_rect = pygame.Rect(
-            self.pos_x, 
-            self.pos_y, 
-            self.tile_size, 
-            self.tile_size
+            self.pos_x + padding, 
+            self.pos_y + padding, 
+            self.tile_size - (padding * 2), 
+            self.tile_size - (padding * 2)
         )
         
         if self.is_hidden:
             if self.is_flagged:
-                # Flagged tile - using your beautiful cyan accent
+                # Flagged tile - using your cyan accent
                 pygame.draw.rect(game_window, COLORS['accent_blue'], tile_rect, border_radius=TILE_BORDER_RADIUS)
                 pygame.draw.rect(game_window, COLORS['light_blue'], tile_rect, 2, border_radius=TILE_BORDER_RADIUS)
                 
-                # Draw crisp flag symbol
+                # Draw flag symbol (larger for mobile)
                 center_x = self.pos_x + self.tile_size // 2
                 center_y = self.pos_y + self.tile_size // 2
-                flag_size = self.tile_size // 3
+                flag_size = (self.tile_size // 2) if IS_MOBILE else (self.tile_size // 3)
                 
-                # Flag pole
+                # Flag pole (thicker for mobile)
+                pole_width = 4 if IS_MOBILE else 3
                 pygame.draw.line(game_window, COLORS['text_primary'], 
                                (center_x - flag_size//3, center_y - flag_size//2),
-                               (center_x - flag_size//3, center_y + flag_size//2), 3)
+                               (center_x - flag_size//3, center_y + flag_size//2), pole_width)
                 
-                # Flag triangle using purple accent
+                # Flag triangle
                 flag_points = [
                     (center_x - flag_size//3, center_y - flag_size//2),
                     (center_x + flag_size//3, center_y - flag_size//4),
@@ -201,43 +200,42 @@ class Tile:
                 ]
                 pygame.draw.polygon(game_window, COLORS['secondary_accent'], flag_points)
             else:
-                # Hidden tile - using your teal background colors
+                # Hidden tile - black with subtle border
                 pygame.draw.rect(game_window, COLORS['tile_hidden'], tile_rect, border_radius=TILE_BORDER_RADIUS)
                 pygame.draw.rect(game_window, COLORS['tile_border'], tile_rect, 1, border_radius=TILE_BORDER_RADIUS)
         else:
             if self.is_bomb:
-                # Bomb tile - red with your theme background
+                # Bomb tile
                 pygame.draw.rect(game_window, COLORS['danger'], tile_rect, border_radius=TILE_BORDER_RADIUS)
                 
-                # Draw enhanced bomb icon
+                # Enhanced bomb icon (larger for mobile)
                 center_x = self.pos_x + self.tile_size // 2
                 center_y = self.pos_y + self.tile_size // 2
-                bomb_radius = max(self.tile_size // 5, 4)
+                bomb_radius = max(self.tile_size // 4 if IS_MOBILE else self.tile_size // 5, 6)
                 
-                # Main bomb body using your dark background
+                # Main bomb body
                 pygame.draw.circle(game_window, COLORS['background'], (center_x, center_y), bomb_radius)
                 pygame.draw.circle(game_window, COLORS['text_primary'], (center_x, center_y), bomb_radius, 2)
                 
-                # Bomb spikes for detail
+                # Bomb spikes
                 spike_length = bomb_radius // 2
+                spike_width = 2 if IS_MOBILE else 1
                 for angle in [0, 45, 90, 135, 180, 225, 270, 315]:
                     import math
                     end_x = center_x + spike_length * math.cos(math.radians(angle))
                     end_y = center_y + spike_length * math.sin(math.radians(angle))
                     pygame.draw.line(game_window, COLORS['text_primary'], 
-                                   (center_x, center_y), (int(end_x), int(end_y)), 1)
+                                   (center_x, center_y), (int(end_x), int(end_y)), spike_width)
             else:
-                # Revealed tile - using your theme colors
+                # Revealed tile
                 pygame.draw.rect(game_window, COLORS['tile_revealed'], tile_rect, border_radius=TILE_BORDER_RADIUS)
                 pygame.draw.rect(game_window, COLORS['tile_border'], tile_rect, 1, border_radius=TILE_BORDER_RADIUS)
                 
-                # Add crisp number rendering
+                # Add number rendering (larger font for mobile)
                 if self.is_numbered:
-                    # Use optimized font rendering for clarity
-                    font_size = max(self.tile_size // 2, 16)
+                    font_size = max(self.tile_size // 2, 20 if IS_MOBILE else 16)
                     number_font = pygame.font.Font(None, font_size)
                     
-                    # Render with anti-aliasing for crisp text
                     text_surface = number_font.render(str(self.value), True, self.get_color())
                     text_rect = text_surface.get_rect(center=(
                         self.pos_x + self.tile_size // 2,
