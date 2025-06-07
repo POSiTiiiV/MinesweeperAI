@@ -16,13 +16,44 @@ from minesweeper.api import MinesweeperAPI
 # Game configuration constants
 #----------------------------------------------------------------------
 
-# Desktop PC proportions - smaller window size
-ROWS, COLS = 16, 25    # Keep the same grid size
-N_BOMBS = 80           # Keep the same number of bombs
-BUFFER = 3             # Keep the same spacing
-STRIP_HEIGHT = 80      # Slightly smaller strip height
-SCREEN_WIDTH = 800     # Reduced window size
-SCREEN_HEIGHT = 600   # Reduced window size
+import platform
+
+# Platform detection - updated to handle command line arguments properly
+IS_MOBILE = (platform.system() in ['Android', 'iOS'] or 
+            '--mobile' in sys.argv or 
+            any('--mobile' in arg for arg in sys.argv))
+
+# Desktop PC proportions - smaller window size (unchanged)
+DESKTOP_ROWS, DESKTOP_COLS = 16, 25
+DESKTOP_N_BOMBS = 80
+DESKTOP_BUFFER = 3
+DESKTOP_STRIP_HEIGHT = 80
+DESKTOP_SCREEN_WIDTH = 800
+DESKTOP_SCREEN_HEIGHT = 600
+
+# Mobile phone proportions - optimized for portrait mode
+MOBILE_ROWS, MOBILE_COLS = 15, 10  # Portrait ratio, more rows than columns
+MOBILE_N_BOMBS = 30                # Adjusted for smaller grid
+MOBILE_BUFFER = 2                  # Tighter spacing for mobile
+MOBILE_STRIP_HEIGHT = 100          # Fixed: Increased from 10 to 100 for proper spacing
+MOBILE_SCREEN_WIDTH = 400          # Portrait width
+MOBILE_SCREEN_HEIGHT = 650         # Changed to 650 as requested
+
+# Set active configuration based on platform
+if IS_MOBILE:
+    ROWS, COLS = MOBILE_ROWS, MOBILE_COLS
+    N_BOMBS = MOBILE_N_BOMBS
+    BUFFER = MOBILE_BUFFER
+    STRIP_HEIGHT = MOBILE_STRIP_HEIGHT
+    SCREEN_WIDTH = MOBILE_SCREEN_WIDTH
+    SCREEN_HEIGHT = MOBILE_SCREEN_HEIGHT
+else:
+    ROWS, COLS = DESKTOP_ROWS, DESKTOP_COLS
+    N_BOMBS = DESKTOP_N_BOMBS
+    BUFFER = DESKTOP_BUFFER
+    STRIP_HEIGHT = DESKTOP_STRIP_HEIGHT
+    SCREEN_WIDTH = DESKTOP_SCREEN_WIDTH
+    SCREEN_HEIGHT = DESKTOP_SCREEN_HEIGHT
 
 
 # Modern color scheme - Black tiles with cyan/purple accents
@@ -56,28 +87,57 @@ NUMBER_COLORS = {
     8: (234, 248, 250)      # --text-950 (white)
 }
 
-# Modern design constants for crisp rendering
-TILE_BORDER_RADIUS = 4     # Smaller for crisp pixels
-TILE_PADDING = 1           # Minimal padding
+# Modern design constants - adaptive for platform
+if IS_MOBILE:
+    TILE_BORDER_RADIUS = 6     # Larger for touch targets
+    TILE_PADDING = 2           # More padding for mobile
+    MIN_TILE_SIZE = 30         # Reduced from 35 to fit more tiles
+    BUTTON_SIZE = 50           # Reduced from 60
+    COUNTER_FONT_SIZE = 36     # Reduced from 50
+    LABEL_FONT_SIZE = 18       # Reduced from 24
+else:
+    TILE_BORDER_RADIUS = 4     # Smaller for crisp pixels
+    TILE_PADDING = 1           # Minimal padding
+    MIN_TILE_SIZE = 20         # Smaller minimum for desktop
+    BUTTON_SIZE = 50           # Standard button size
+    COUNTER_FONT_SIZE = 40     # Standard text size
+    LABEL_FONT_SIZE = 20       # Standard labels
 
 # Asset directory
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
-# Grid layout calculations - ensure proper fit
-AVAILABLE_WIDTH = SCREEN_WIDTH - (BUFFER * 2)  # Account for side margins
-AVAILABLE_HEIGHT = SCREEN_HEIGHT - STRIP_HEIGHT - (BUFFER * 2)  # Account for top/bottom margins
-TILE_SIZE = min(AVAILABLE_WIDTH // COLS, AVAILABLE_HEIGHT // ROWS) - BUFFER
+# Grid layout calculations - platform adaptive with bounds checking
+AVAILABLE_WIDTH = SCREEN_WIDTH - (BUFFER * 4)  # More margin for mobile
+AVAILABLE_HEIGHT = SCREEN_HEIGHT - STRIP_HEIGHT - (BUFFER * 4)  # More margin
 
-# Ensure tile size is reasonable
-TILE_SIZE = max(TILE_SIZE, 20)  # Minimum tile size for visibility
+# Calculate tile size with better constraints
+max_tile_width = AVAILABLE_WIDTH // COLS
+max_tile_height = AVAILABLE_HEIGHT // ROWS
+TILE_SIZE = min(max_tile_width, max_tile_height) - BUFFER
+
+# Ensure tile size is appropriate for platform with stricter limits
+if IS_MOBILE:
+    TILE_SIZE = max(min(TILE_SIZE, 35), MIN_TILE_SIZE)  # Cap at 35px for mobile
+else:
+    TILE_SIZE = max(TILE_SIZE, MIN_TILE_SIZE)
 
 ACTUAL_GRID_WIDTH = (TILE_SIZE * COLS) + (BUFFER * (COLS - 1))
 ACTUAL_GRID_HEIGHT = (TILE_SIZE * ROWS) + (BUFFER * (ROWS - 1))
+
+# Ensure grid fits within screen bounds
+if ACTUAL_GRID_WIDTH > SCREEN_WIDTH - 20:
+    TILE_SIZE = (SCREEN_WIDTH - 20 - (BUFFER * (COLS - 1))) // COLS
+    ACTUAL_GRID_WIDTH = (TILE_SIZE * COLS) + (BUFFER * (COLS - 1))
+
+if ACTUAL_GRID_HEIGHT > SCREEN_HEIGHT - STRIP_HEIGHT - 20:
+    TILE_SIZE = (SCREEN_HEIGHT - STRIP_HEIGHT - 20 - (BUFFER * (ROWS - 1))) // ROWS
+    ACTUAL_GRID_HEIGHT = (TILE_SIZE * ROWS) + (BUFFER * (ROWS - 1))
+
 GRID_X_OFFSET = (SCREEN_WIDTH - ACTUAL_GRID_WIDTH) // 2
 GRID_Y_OFFSET = STRIP_HEIGHT + (SCREEN_HEIGHT - STRIP_HEIGHT - ACTUAL_GRID_HEIGHT) // 2
 
-# Font size calculations for crisp text
-TILE_FONT_SIZE = max(TILE_SIZE // 2, 16)  # Ensure readable font size
+# Font size calculations - platform adaptive
+TILE_FONT_SIZE = max(TILE_SIZE // 2, 16 if IS_MOBILE else 14)
 
 class MinesweeperGame:
     """
@@ -118,7 +178,7 @@ class MinesweeperGame:
 
     def _load_assets(self):
         """
-        Load assets for modern minimalist design optimized for smaller desktop window.
+        Load assets with platform-adaptive sizing.
         """
         # Create modern tile font
         Tile.load_assets(
@@ -129,12 +189,18 @@ class MinesweeperGame:
             font=pygame.font.Font(None, max(TILE_FONT_SIZE, 16))
         )
         
-        # Smaller restart button for compact window
-        self.restart_rect = pygame.Rect(SCREEN_WIDTH//2 - 25, STRIP_HEIGHT//2 - 25, 50, 50)
+        # Platform-adaptive restart button
+        button_size = BUTTON_SIZE
+        self.restart_rect = pygame.Rect(
+            SCREEN_WIDTH//2 - button_size//2, 
+            STRIP_HEIGHT//2 - button_size//2, 
+            button_size, 
+            button_size
+        )
         
-        # Optimized fonts for smaller window
-        self.counter_font = pygame.font.Font(None, 40)
-        self.title_font = pygame.font.Font(None, 20)
+        # Platform-adaptive fonts
+        self.counter_font = pygame.font.Font(None, COUNTER_FONT_SIZE)
+        self.title_font = pygame.font.Font(None, LABEL_FONT_SIZE)
 
     def setup_new_game(self) -> None:
         """
@@ -392,9 +458,9 @@ class MinesweeperGame:
     
     def draw_counters(self) -> None:
         """
-        Draw counters using your custom theme colors.
+        Draw counters with platform-adaptive sizing.
         """
-        # Modern dark strip using your background
+        # Modern dark strip
         strip_bg = pygame.Surface((SCREEN_WIDTH, STRIP_HEIGHT))
         strip_bg.fill(COLORS['background'])
         self.game_window.blit(strip_bg, (0, 0))
@@ -402,27 +468,30 @@ class MinesweeperGame:
         # Calculate remaining mines
         remaining_mines = self.bomb_count - self.flagged_count
         
-        # Adjusted fonts for smaller window
-        counter_font = pygame.font.Font(None, 40)  # Slightly smaller
-        label_font = pygame.font.Font(None, 20)    # Smaller labels
+        # Platform-adaptive fonts
+        counter_font = pygame.font.Font(None, COUNTER_FONT_SIZE)
+        label_font = pygame.font.Font(None, LABEL_FONT_SIZE)
         
         # Modern mine counter (left side)
         mine_text = f"{remaining_mines:03d}"
         mine_surface = counter_font.render(mine_text, True, COLORS['text_primary'])
         mine_label = label_font.render("MINES", True, COLORS['text_secondary'])
         
-        # Position for smaller window
-        mine_rect = mine_surface.get_rect(center=(80, STRIP_HEIGHT//2 + 5))
-        mine_label_rect = mine_label.get_rect(center=(80, STRIP_HEIGHT//2 - 15))
+        # Platform-adaptive positioning
+        x_margin = 100 if IS_MOBILE else 80
+        y_offset = 8 if IS_MOBILE else 5
+        label_offset = -25 if IS_MOBILE else -15
+        
+        mine_rect = mine_surface.get_rect(center=(x_margin, STRIP_HEIGHT//2 + y_offset))
+        mine_label_rect = mine_label.get_rect(center=(x_margin, STRIP_HEIGHT//2 + label_offset))
         
         # Modern flag counter (right side)
         flag_text = f"{self.flagged_count:03d}"
         flag_surface = counter_font.render(flag_text, True, COLORS['text_primary'])
         flag_label = label_font.render("FLAGS", True, COLORS['text_secondary'])
         
-        # Position for smaller window
-        flag_rect = flag_surface.get_rect(center=(SCREEN_WIDTH - 80, STRIP_HEIGHT//2 + 5))
-        flag_label_rect = flag_label.get_rect(center=(SCREEN_WIDTH - 80, STRIP_HEIGHT//2 - 15))
+        flag_rect = flag_surface.get_rect(center=(SCREEN_WIDTH - x_margin, STRIP_HEIGHT//2 + y_offset))
+        flag_label_rect = flag_label.get_rect(center=(SCREEN_WIDTH - x_margin, STRIP_HEIGHT//2 + label_offset))
         
         # Draw the counters
         self.game_window.blit(mine_label, mine_label_rect)
@@ -438,48 +507,54 @@ class MinesweeperGame:
 
     def draw_modern_restart_button(self) -> None:
         """
-        Draw restart button using your custom theme colors.
+        Draw restart button with platform-adaptive sizing.
         """
-        # Adjust button size for smaller window
-        button_radius = 20
+        # Platform-adaptive button radius
+        button_radius = 30 if IS_MOBILE else 20
         center = (self.restart_rect.centerx, self.restart_rect.centery)
         
         if self.game_status == "playing":
-            # Using your theme colors
             pygame.draw.circle(self.game_window, COLORS['tile_hidden'], center, button_radius)
             pygame.draw.circle(self.game_window, COLORS['accent_blue'], center, button_radius, 2)
             
-            # Restart symbol
+            # Restart symbol (larger for mobile)
+            arc_size = 16 if IS_MOBILE else 10
+            line_width = 4 if IS_MOBILE else 3
+            
             pygame.draw.arc(self.game_window, COLORS['text_primary'], 
-                           (center[0]-10, center[1]-10, 20, 20), 0.5, 5.5, 3)
-            # Arrow tip
+                           (center[0]-arc_size, center[1]-arc_size, arc_size*2, arc_size*2), 0.5, 5.5, line_width)
+            
+            # Arrow tip (larger for mobile)
+            arrow_size = 8 if IS_MOBILE else 5
             pygame.draw.polygon(self.game_window, COLORS['text_primary'], [
-                (center[0]+7, center[1]-7),
-                (center[0]+10, center[1]-3),
-                (center[0]+3, center[1]-3)
+                (center[0]+arc_size-2, center[1]-arc_size+2),
+                (center[0]+arc_size+arrow_size-2, center[1]-arrow_size),
+                (center[0]+arrow_size, center[1]-arrow_size)
             ])
         elif self.game_status == "won":
-            # Success state using your theme
             pygame.draw.circle(self.game_window, COLORS['success'], center, button_radius)
             pygame.draw.circle(self.game_window, COLORS['light_blue'], center, button_radius, 2)
             
-            # Checkmark
+            # Checkmark (larger for mobile)
+            check_size = 8 if IS_MOBILE else 6
+            line_width = 4 if IS_MOBILE else 3
             check_points = [
-                (center[0]-6, center[1]),
-                (center[0]-2, center[1]+4),
-                (center[0]+6, center[1]-4)
+                (center[0]-check_size, center[1]),
+                (center[0]-2, center[1]+check_size//2),
+                (center[0]+check_size, center[1]-check_size//2)
             ]
-            pygame.draw.lines(self.game_window, COLORS['text_primary'], False, check_points, 3)
+            pygame.draw.lines(self.game_window, COLORS['text_primary'], False, check_points, line_width)
         else:  # lost
-            # Danger state
             pygame.draw.circle(self.game_window, COLORS['danger'], center, button_radius)
             pygame.draw.circle(self.game_window, COLORS['secondary_light'], center, button_radius, 2)
             
-            # X symbol
+            # X symbol (larger for mobile)
+            x_size = 8 if IS_MOBILE else 6
+            line_width = 4 if IS_MOBILE else 3
             pygame.draw.line(self.game_window, COLORS['text_primary'], 
-                           (center[0]-6, center[1]-6), (center[0]+6, center[1]+6), 3)
+                           (center[0]-x_size, center[1]-x_size), (center[0]+x_size, center[1]+x_size), line_width)
             pygame.draw.line(self.game_window, COLORS['text_primary'], 
-                           (center[0]+6, center[1]-6), (center[0]-6, center[1]+6), 3)
+                           (center[0]+x_size, center[1]-x_size), (center[0]-x_size, center[1]+x_size), line_width)
 
     #----------------------------------------------------------------------
     # Utility methods
