@@ -180,31 +180,24 @@ class Grid:
 
     def draw_grid(self) -> None:
         """
-        Draw the entire grid to the game window.
-        
-        This method:
-        1. Fills the entire game area with a background color
-        2. Draws all individual tiles
-        3. Updates the display to show changes
-        
-        The update region covers the entire game area below the top strip
-        to prevent black strips from appearing on edges.
+        Draw the grid with modern flat design and minimal spacing.
         """
-        # Fill the entire game area with background color
+        from minesweeper.game import COLORS
+        
+        # Fill background with modern dark color
         pygame.draw.rect(
             self.game_window,
-            (192, 192, 192),  # Light gray background
+            COLORS['background'],
             (0, self.y_offset, self.game_window.get_width(), 
              self.game_window.get_height() - self.y_offset)
         )
         
-        # Draw all tiles
+        # Draw all tiles with minimal spacing
         for row in self.tiles:
             for tile in row:
                 tile.draw(self.game_window)
         
-        # Update the ENTIRE screen below the strip, not just the grid area
-        # This ensures no black strips remain
+        # Update the display
         pygame.display.update([(0, self.y_offset, 
                              self.game_window.get_width(), 
                              self.game_window.get_height() - self.y_offset)])

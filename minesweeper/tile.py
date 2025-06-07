@@ -152,60 +152,98 @@ class Tile:
     def get_color(self) -> tuple[int, int, int]:
         """
         Get the RGB color tuple for the tile's number based on its value.
-        
-        Colors follow the standard Minesweeper scheme:
-        1: Blue, 2: Green, 3: Red, 4: Dark Blue, etc.
+        Modern minimalist color scheme.
         
         Returns:
             tuple: RGB color values (0-255) for the number's color
         """
-        tile_colors = {
-            0: (192, 192, 192),    # Empty opened tile
-            1: (0, 0, 255),        # Blue
-            2: (0, 128, 0),        # Green
-            3: (255, 0, 0),        # Red
-            4: (0, 0, 128),        # Dark Blue
-            5: (128, 0, 0),        # Dark Red
-            6: (0, 128, 128),      # Cyan
-            7: (0, 0, 0),          # Black
-            8: (128, 128, 128)     # Gray
-        }
-        return tile_colors[self.value]
+        from minesweeper.game import NUMBER_COLORS
+        return NUMBER_COLORS.get(self.value, (255, 255, 255))
 
     def draw(self, game_window: pygame.Surface) -> None:
         """
-        Render the tile on the game window with appropriate visuals based on its state.
-        
-        This method draws the tile with different appearances depending on whether it's:
-        - Hidden: Shows the hidden tile image
-        - Flagged: Shows the flag image
-        - Revealed bomb: Shows the bomb image
-        - Revealed number: Shows the revealed tile with number
-        - Revealed empty: Shows the revealed tile without number
+        Render the tile with your custom cyan/teal and purple theme colors.
         
         Args:
             game_window (pygame.Surface): The pygame surface on which to draw the tile
         """
-        # Determine which image to use
-        if self.is_hidden:
-            img = self.flagged_img if self.is_flagged else self.hidden_img
-        elif self.is_bomb:
-            img = self.bomb_img
-        else:
-            img = self.revealed_img
-            
-        # Scale and draw the base tile image
-        scaled_img = pygame.transform.scale(img, (self.tile_size, self.tile_size))
-        game_window.blit(scaled_img, (self.pos_x, self.pos_y))
+        from minesweeper.game import COLORS, TILE_BORDER_RADIUS
         
-        # Add number text if it's already revealed and has a number
-        if not self.is_hidden and self.is_numbered:
-            text_surface = self.font.render(str(self.value), True, self.get_color())
-            text_rect = text_surface.get_rect(center=(
-                self.pos_x + self.tile_size // 2,
-                self.pos_y + self.tile_size // 2
-            ))
-            game_window.blit(text_surface, text_rect)
+        # Create crisp tile rectangle
+        tile_rect = pygame.Rect(
+            self.pos_x, 
+            self.pos_y, 
+            self.tile_size, 
+            self.tile_size
+        )
+        
+        if self.is_hidden:
+            if self.is_flagged:
+                # Flagged tile - using your beautiful cyan accent
+                pygame.draw.rect(game_window, COLORS['accent_blue'], tile_rect, border_radius=TILE_BORDER_RADIUS)
+                pygame.draw.rect(game_window, COLORS['light_blue'], tile_rect, 2, border_radius=TILE_BORDER_RADIUS)
+                
+                # Draw crisp flag symbol
+                center_x = self.pos_x + self.tile_size // 2
+                center_y = self.pos_y + self.tile_size // 2
+                flag_size = self.tile_size // 3
+                
+                # Flag pole
+                pygame.draw.line(game_window, COLORS['text_primary'], 
+                               (center_x - flag_size//3, center_y - flag_size//2),
+                               (center_x - flag_size//3, center_y + flag_size//2), 3)
+                
+                # Flag triangle using purple accent
+                flag_points = [
+                    (center_x - flag_size//3, center_y - flag_size//2),
+                    (center_x + flag_size//3, center_y - flag_size//4),
+                    (center_x - flag_size//3, center_y)
+                ]
+                pygame.draw.polygon(game_window, COLORS['secondary_accent'], flag_points)
+            else:
+                # Hidden tile - using your teal background colors
+                pygame.draw.rect(game_window, COLORS['tile_hidden'], tile_rect, border_radius=TILE_BORDER_RADIUS)
+                pygame.draw.rect(game_window, COLORS['tile_border'], tile_rect, 1, border_radius=TILE_BORDER_RADIUS)
+        else:
+            if self.is_bomb:
+                # Bomb tile - red with your theme background
+                pygame.draw.rect(game_window, COLORS['danger'], tile_rect, border_radius=TILE_BORDER_RADIUS)
+                
+                # Draw enhanced bomb icon
+                center_x = self.pos_x + self.tile_size // 2
+                center_y = self.pos_y + self.tile_size // 2
+                bomb_radius = max(self.tile_size // 5, 4)
+                
+                # Main bomb body using your dark background
+                pygame.draw.circle(game_window, COLORS['background'], (center_x, center_y), bomb_radius)
+                pygame.draw.circle(game_window, COLORS['text_primary'], (center_x, center_y), bomb_radius, 2)
+                
+                # Bomb spikes for detail
+                spike_length = bomb_radius // 2
+                for angle in [0, 45, 90, 135, 180, 225, 270, 315]:
+                    import math
+                    end_x = center_x + spike_length * math.cos(math.radians(angle))
+                    end_y = center_y + spike_length * math.sin(math.radians(angle))
+                    pygame.draw.line(game_window, COLORS['text_primary'], 
+                                   (center_x, center_y), (int(end_x), int(end_y)), 1)
+            else:
+                # Revealed tile - using your theme colors
+                pygame.draw.rect(game_window, COLORS['tile_revealed'], tile_rect, border_radius=TILE_BORDER_RADIUS)
+                pygame.draw.rect(game_window, COLORS['tile_border'], tile_rect, 1, border_radius=TILE_BORDER_RADIUS)
+                
+                # Add crisp number rendering
+                if self.is_numbered:
+                    # Use optimized font rendering for clarity
+                    font_size = max(self.tile_size // 2, 16)
+                    number_font = pygame.font.Font(None, font_size)
+                    
+                    # Render with anti-aliasing for crisp text
+                    text_surface = number_font.render(str(self.value), True, self.get_color())
+                    text_rect = text_surface.get_rect(center=(
+                        self.pos_x + self.tile_size // 2,
+                        self.pos_y + self.tile_size // 2
+                    ))
+                    game_window.blit(text_surface, text_rect)
 
     #----------------------------------------------------------------------
     # Game mechanics - primary interaction methods
