@@ -16,31 +16,68 @@ from minesweeper.api import MinesweeperAPI
 # Game configuration constants
 #----------------------------------------------------------------------
 
-ROWS, COLS = 32, 32
-N_BOMBS = 99
-BUFFER = 4  # margin/gap between tiles
-STRIP_HEIGHT = 50  # Height of the top strip
-SCREEN_WIDTH = 600  # Fixed screen width
-SCREEN_HEIGHT = 600 + STRIP_HEIGHT  # Screen height with strip
+# Desktop PC proportions - smaller window size
+ROWS, COLS = 16, 25    # Keep the same grid size
+N_BOMBS = 80           # Keep the same number of bombs
+BUFFER = 3             # Keep the same spacing
+STRIP_HEIGHT = 80      # Slightly smaller strip height
+SCREEN_WIDTH = 800     # Reduced window size
+SCREEN_HEIGHT = 600   # Reduced window size
+
+
+# Modern color scheme - Black tiles with cyan/purple accents
+COLORS = {
+    'background': (5, 18, 21),         # Keep your dark background
+    'tile_hidden': (25, 25, 30),       # Dark gray/black tiles
+    'tile_revealed': (15, 15, 20),     # Even darker for revealed tiles
+    'tile_border': (45, 45, 55),       # Subtle dark border
+    'accent_blue': (47, 181, 208),     # Keep your cyan accent
+    'light_blue': (89, 196, 217),      # Keep your light cyan
+    'text_primary': (234, 248, 250),   # Keep your light text
+    'text_secondary': (171, 227, 237), # Keep your secondary text
+    'danger': (255, 65, 55),           # Keep red for bombs
+    'success': (45, 210, 85),          # Keep green for success
+    'warning': (255, 210, 10),         # Keep yellow for warning
+    'secondary_accent': (144, 47, 208), # Keep your purple
+    'secondary_light': (166, 89, 217),  # Keep your light purple
+    'accent_purple': (208, 47, 208),    # Keep your magenta
+    'light_purple': (217, 89, 217),     # Keep your light magenta
+}
+
+# Enhanced number colors using your cyan/teal and purple theme palette
+NUMBER_COLORS = {
+    1: (47, 181, 208),      # --primary-500 (main cyan)
+    2: (45, 210, 85),       # Green (keep for contrast)
+    3: (255, 65, 55),       # Red (keep for contrast)
+    4: (144, 47, 208),      # --secondary-500 (purple)
+    5: (255, 160, 10),      # Orange (keep for contrast)
+    6: (208, 47, 208),      # --accent-500 (magenta)
+    7: (130, 211, 227),     # --primary-700 (light cyan)
+    8: (234, 248, 250)      # --text-950 (white)
+}
+
+# Modern design constants for crisp rendering
+TILE_BORDER_RADIUS = 4     # Smaller for crisp pixels
+TILE_PADDING = 1           # Minimal padding
 
 # Asset directory
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
-# Grid layout calculations
-AVAILABLE_WIDTH = SCREEN_WIDTH - (BUFFER * (COLS + 1))
-AVAILABLE_HEIGHT = SCREEN_HEIGHT - STRIP_HEIGHT - (BUFFER * (ROWS + 1))
-TILE_SIZE = min(AVAILABLE_WIDTH // COLS, AVAILABLE_HEIGHT // ROWS)
-ACTUAL_GRID_WIDTH = (TILE_SIZE * COLS) + (BUFFER * (COLS + 1))
-ACTUAL_GRID_HEIGHT = (TILE_SIZE * ROWS) + (BUFFER * (ROWS + 1))
+# Grid layout calculations - ensure proper fit
+AVAILABLE_WIDTH = SCREEN_WIDTH - (BUFFER * 2)  # Account for side margins
+AVAILABLE_HEIGHT = SCREEN_HEIGHT - STRIP_HEIGHT - (BUFFER * 2)  # Account for top/bottom margins
+TILE_SIZE = min(AVAILABLE_WIDTH // COLS, AVAILABLE_HEIGHT // ROWS) - BUFFER
+
+# Ensure tile size is reasonable
+TILE_SIZE = max(TILE_SIZE, 20)  # Minimum tile size for visibility
+
+ACTUAL_GRID_WIDTH = (TILE_SIZE * COLS) + (BUFFER * (COLS - 1))
+ACTUAL_GRID_HEIGHT = (TILE_SIZE * ROWS) + (BUFFER * (ROWS - 1))
 GRID_X_OFFSET = (SCREEN_WIDTH - ACTUAL_GRID_WIDTH) // 2
+GRID_Y_OFFSET = STRIP_HEIGHT + (SCREEN_HEIGHT - STRIP_HEIGHT - ACTUAL_GRID_HEIGHT) // 2
 
-# Font size calculations
-BASE_FONT_SIZE = 32  # The font size for a standard 16x16 grid
-BASE_GRID_SIZE = 16  # Standard Minesweeper grid dimension
-FONT_SCALE_FACTOR = max(ROWS, COLS) / BASE_GRID_SIZE
-
-# Calculate tile font size based on grid dimensions and tile size
-TILE_FONT_SIZE = max(int(BASE_FONT_SIZE / FONT_SCALE_FACTOR), 12)  # Minimum 12pt
+# Font size calculations for crisp text
+TILE_FONT_SIZE = max(TILE_SIZE // 2, 16)  # Ensure readable font size
 
 class MinesweeperGame:
     """
@@ -53,18 +90,18 @@ class MinesweeperGame:
     
     def __init__(self):
         """
-        Initialize the game, setting up the window, assets, and initial game state.
-        
-        This creates the game window, loads all required assets, and prepares
-        the game for the first run.
+        Initialize the game with modern dark theme.
         """
         pygame.init()
 
         self.game_window = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("MinesweeperAI")
+        pygame.display.set_caption("MinesweeperAI - Modern")
+        
+        # Set window background to dark
+        self.game_window.fill(COLORS['background'])
 
         # Game state variables
-        self.game_status = "playing"  # Can be "playing", "won", or "lost"
+        self.game_status = "playing"
         self.bomb_count = N_BOMBS
         self.flagged_count = 0
         self.grid = None
@@ -73,42 +110,32 @@ class MinesweeperGame:
         self.revealed_count = 0
         self.bombs_placed = False
 
-        # Load tile assets
+        # Load modern assets
         self._load_assets()
         
         # Create API instance
         self.api = None
-    
-    #----------------------------------------------------------------------
-    # Initialization methods
-    #----------------------------------------------------------------------
-    
+
     def _load_assets(self):
         """
-        Load all game assets including tile images, fonts and emoji faces.
-        
-        This is a private helper method called during initialization.
+        Load assets for modern minimalist design optimized for smaller desktop window.
         """
-        # Load images and font for all tiles
+        # Create modern tile font
         Tile.load_assets(
             bomb_path=os.path.join(ASSETS_DIR, 'bomb.png'),
             hidden_path=os.path.join(ASSETS_DIR, 'hidden2.png'),
             revealed_path=os.path.join(ASSETS_DIR, 'revealed.png'),
             flagged_path=os.path.join(ASSETS_DIR, 'flag1.png'),
-            font=pygame.font.Font('freesansbold.ttf', TILE_FONT_SIZE)
+            font=pygame.font.Font(None, max(TILE_FONT_SIZE, 16))
         )
         
-        # Load emoji faces for restart button
-        self.face_happy = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, 'face_happy.png')), (40, 40))
-        self.face_sad = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, 'face_sad.png')), (40, 40))
-        self.face_cool = pygame.transform.scale(pygame.image.load(os.path.join(ASSETS_DIR, 'face_cool.png')), (40, 40))
+        # Smaller restart button for compact window
+        self.restart_rect = pygame.Rect(SCREEN_WIDTH//2 - 25, STRIP_HEIGHT//2 - 25, 50, 50)
         
-        # Restart button rect
-        self.restart_rect = pygame.Rect(SCREEN_WIDTH//2 - 20, STRIP_HEIGHT//2 - 20, 40, 40)
-        
-        # Create fonts for the counters
-        self.counter_font = pygame.font.Font('freesansbold.ttf', 24)
-    
+        # Optimized fonts for smaller window
+        self.counter_font = pygame.font.Font(None, 40)
+        self.title_font = pygame.font.Font(None, 20)
+
     def setup_new_game(self) -> None:
         """
         Set up a new game with fresh state.
@@ -135,15 +162,12 @@ class MinesweeperGame:
     
     def setup(self) -> None:
         """
-        Set up the game without running the game loop.
-        
-        This method initializes the game, creating the grid and UI,
-        but doesn't start the event loop - allowing programmatic control.
+        Set up the game with properly sized grid.
         """
-        # Fill the entire window with gray background first
-        self.game_window.fill((192, 192, 192))
+        # Fill with dark background
+        self.game_window.fill(COLORS['background'])
 
-        # Create the grid and cache all_tiles
+        # Create the grid with proper positioning
         self.grid, self.all_tiles = Grid.make_grid(
             self.game_window, 
             ROWS, 
@@ -151,7 +175,7 @@ class MinesweeperGame:
             TILE_SIZE, 
             N_BOMBS, 
             BUFFER,
-            y_offset=STRIP_HEIGHT,
+            y_offset=GRID_Y_OFFSET,  # Use calculated Y offset
             x_offset=GRID_X_OFFSET
         )
         self.non_bomb_tiles_count = ROWS * COLS - N_BOMBS
@@ -161,7 +185,6 @@ class MinesweeperGame:
             self.api = MinesweeperAPI(self)
 
         self.setup_new_game()
-        # Draw initial state
         pygame.display.flip()
     
     def run(self) -> None:
@@ -199,12 +222,13 @@ class MinesweeperGame:
                         self.api.restart_game()
                         continue
                     
-                    # Adjust mouse position to account for the top strip
-                    adjusted_y = mouse_y - STRIP_HEIGHT
+                    # Adjust mouse position to account for the grid offset
+                    adjusted_x = mouse_x - GRID_X_OFFSET
+                    adjusted_y = mouse_y - GRID_Y_OFFSET
                     
-                    # Only process mouse events on the grid if adjusted_y is positive
-                    if adjusted_y >= 0:
-                        row, col = self.get_tile_at_pos(mouse_x, adjusted_y, TILE_SIZE, BUFFER, GRID_X_OFFSET)
+                    # Only process mouse events on the grid if coordinates are positive
+                    if adjusted_x >= 0 and adjusted_y >= 0:
+                        row, col = self.get_tile_at_pos(adjusted_x, adjusted_y, TILE_SIZE, BUFFER)
                         
                         if 0 <= row < ROWS and 0 <= col < COLS:
                             # Handle clicks through the API
@@ -299,72 +323,67 @@ class MinesweeperGame:
     
     def won(self) -> None:
         """
-        Handle the game-won state.
-        
-        Updates the game status, flags all remaining bombs,
-        and displays a win message overlay.
+        Handle the game-won state with modern overlay.
         """
         print("Congratulations! You won!")
         
-        # Set game status
         self.game_status = "won"
         
-        # Mark all hidden tiles (which must be bombs) as flags
+        # Mark all hidden tiles as flags
         for tile in self.all_tiles:
             if tile.is_hidden and not tile.is_flagged:
                 self.api.flag_tile(tile.row, tile.col)
         
-        # Update the counter display with cool face
         self.draw_counters()
         
-        # Show a message on the screen
-        font = pygame.font.Font('freesansbold.ttf', 64)
-        win_text = font.render("YOU WIN!", True, (0, 255, 0))
-        text_rect = win_text.get_rect(center=(SCREEN_WIDTH//2, STRIP_HEIGHT + SCREEN_HEIGHT//2))
-        
-        # Apply a semi-transparent overlay
+        # Modern win overlay
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))  # Semi-transparent black
+        overlay.fill((0, 0, 0, 180))  # Semi-transparent black
         
-        # Draw overlay and text
+        # Modern win text
+        win_font = pygame.font.Font(None, 72)
+        win_text = win_font.render("VICTORY", True, COLORS['success'])
+        win_rect = win_text.get_rect(center=(SCREEN_WIDTH//2, STRIP_HEIGHT + SCREEN_HEIGHT//2 - 20))
+        
+        sub_text = self.counter_font.render("Click restart to play again", True, COLORS['text_secondary'])
+        sub_rect = sub_text.get_rect(center=(SCREEN_WIDTH//2, STRIP_HEIGHT + SCREEN_HEIGHT//2 + 30))
+        
         self.game_window.blit(overlay, (0, 0))
-        self.game_window.blit(win_text, text_rect)
+        self.game_window.blit(win_text, win_rect)
+        self.game_window.blit(sub_text, sub_rect)
         pygame.display.flip()
 
     def lost(self) -> None:
         """
-        Handle the game-lost state.
-        
-        Updates the game status, reveals all bombs,
-        and displays a game over message overlay.
+        Handle the game-lost state with modern overlay.
         """
         print("Game over! You hit a bomb.")
         
-        # Set game status
         self.game_status = "lost"
         
         # Reveal all bombs
         for tile in self.all_tiles:
             if tile.is_bomb and tile.is_hidden:
-                # Force reveal bombs without triggering cascade
                 tile.is_hidden = False
                 tile.draw(self.game_window)
         
-        # Update the counter display with sad face
         self.draw_counters()
         
-        # Show a message on the screen
-        font = pygame.font.Font('freesansbold.ttf', 64)
-        lose_text = font.render("GAME OVER", True, (255, 0, 0))
-        text_rect = lose_text.get_rect(center=(SCREEN_WIDTH//2, STRIP_HEIGHT + SCREEN_HEIGHT//2))
+        # Modern loss overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)  
+        overlay.fill((0, 0, 0, 180))
         
-        # Apply a semi-transparent overlay
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))  # Semi-transparent black
+        # Modern loss text
+        lose_font = pygame.font.Font(None, 72)
+        lose_text = lose_font.render("GAME OVER", True, COLORS['danger'])
+        lose_rect = lose_text.get_rect(center=(SCREEN_WIDTH//2, STRIP_HEIGHT + SCREEN_HEIGHT//2 - 20))
         
-        # Draw overlay and text
+        sub_text = self.counter_font.render("Click restart to try again", True, COLORS['text_secondary'])
+        sub_rect = sub_text.get_rect(center=(SCREEN_WIDTH//2, STRIP_HEIGHT + SCREEN_HEIGHT//2 + 30))
+        
         self.game_window.blit(overlay, (0, 0))
-        self.game_window.blit(lose_text, text_rect)
+        self.game_window.blit(lose_text, lose_rect)
+        self.game_window.blit(sub_text, sub_rect)
         pygame.display.flip()
     
     #----------------------------------------------------------------------
@@ -373,90 +392,115 @@ class MinesweeperGame:
     
     def draw_counters(self) -> None:
         """
-        Draw the top strip with bomb counter, restart button, and flag counter.
-        
-        This updates the UI elements in the top strip of the game window.
+        Draw counters using your custom theme colors.
         """
-        # Create a gray background for the strip
+        # Modern dark strip using your background
         strip_bg = pygame.Surface((SCREEN_WIDTH, STRIP_HEIGHT))
-        strip_bg.fill((192, 192, 192))  # Light gray like classic Minesweeper
+        strip_bg.fill(COLORS['background'])
         self.game_window.blit(strip_bg, (0, 0))
         
-        # Draw border for the strip
-        pygame.draw.rect(self.game_window, (128, 128, 128), (0, 0, SCREEN_WIDTH, STRIP_HEIGHT), 2)
+        # Calculate remaining mines
+        remaining_mines = self.bomb_count - self.flagged_count
         
-        # Calculate remaining flags (bomb count - flagged count), it could go negative
-        remaining_flags_count = self.bomb_count - self.flagged_count
+        # Adjusted fonts for smaller window
+        counter_font = pygame.font.Font(None, 40)  # Slightly smaller
+        label_font = pygame.font.Font(None, 20)    # Smaller labels
         
-        # Create bomb counter (left side)
-        bomb_counter = self.counter_font.render(f"{remaining_flags_count:03d}", True, (255, 0, 0))
-        bomb_rect = bomb_counter.get_rect(center=(80, STRIP_HEIGHT//2))
+        # Modern mine counter (left side)
+        mine_text = f"{remaining_mines:03d}"
+        mine_surface = counter_font.render(mine_text, True, COLORS['text_primary'])
+        mine_label = label_font.render("MINES", True, COLORS['text_secondary'])
         
-        # Create flag counter (right side)
-        flag_counter = self.counter_font.render(f"{self.flagged_count:03d}", True, (0, 0, 255))
-        flag_rect = flag_counter.get_rect(center=(SCREEN_WIDTH - 80, STRIP_HEIGHT//2))
+        # Position for smaller window
+        mine_rect = mine_surface.get_rect(center=(80, STRIP_HEIGHT//2 + 5))
+        mine_label_rect = mine_label.get_rect(center=(80, STRIP_HEIGHT//2 - 15))
+        
+        # Modern flag counter (right side)
+        flag_text = f"{self.flagged_count:03d}"
+        flag_surface = counter_font.render(flag_text, True, COLORS['text_primary'])
+        flag_label = label_font.render("FLAGS", True, COLORS['text_secondary'])
+        
+        # Position for smaller window
+        flag_rect = flag_surface.get_rect(center=(SCREEN_WIDTH - 80, STRIP_HEIGHT//2 + 5))
+        flag_label_rect = flag_label.get_rect(center=(SCREEN_WIDTH - 80, STRIP_HEIGHT//2 - 15))
         
         # Draw the counters
-        self.game_window.blit(bomb_counter, bomb_rect)
-        self.game_window.blit(flag_counter, flag_rect)
+        self.game_window.blit(mine_label, mine_label_rect)
+        self.game_window.blit(mine_surface, mine_rect)
+        self.game_window.blit(flag_label, flag_label_rect)
+        self.game_window.blit(flag_surface, flag_rect)
         
-        # Draw restart button with appropriate face
-        if self.game_status == "playing":
-            self.game_window.blit(self.face_happy, self.restart_rect)
-        elif self.game_status == "won":
-            self.game_window.blit(self.face_cool, self.restart_rect)
-        else:  # lost
-            self.game_window.blit(self.face_sad, self.restart_rect)
-    
-        # Add a border around the button
-        pygame.draw.rect(self.game_window, (128, 128, 128), self.restart_rect, 2)
+        # Modern restart button
+        self.draw_modern_restart_button()
         
-        # Update only the strip region
+        # Update strip
         pygame.display.update([(0, 0, SCREEN_WIDTH, STRIP_HEIGHT)])
 
-    def draw_restart_button(self) -> None:
+    def draw_modern_restart_button(self) -> None:
         """
-        Draw the restart button with the appropriate face.
+        Draw restart button using your custom theme colors.
+        """
+        # Adjust button size for smaller window
+        button_radius = 20
+        center = (self.restart_rect.centerx, self.restart_rect.centery)
         
-        The face changes based on game status (happy, cool, or sad).
-        """
         if self.game_status == "playing":
-            # Draw the happy face
-            self.game_window.blit(self.face_happy, self.restart_rect.topleft)
+            # Using your theme colors
+            pygame.draw.circle(self.game_window, COLORS['tile_hidden'], center, button_radius)
+            pygame.draw.circle(self.game_window, COLORS['accent_blue'], center, button_radius, 2)
+            
+            # Restart symbol
+            pygame.draw.arc(self.game_window, COLORS['text_primary'], 
+                           (center[0]-10, center[1]-10, 20, 20), 0.5, 5.5, 3)
+            # Arrow tip
+            pygame.draw.polygon(self.game_window, COLORS['text_primary'], [
+                (center[0]+7, center[1]-7),
+                (center[0]+10, center[1]-3),
+                (center[0]+3, center[1]-3)
+            ])
         elif self.game_status == "won":
-            # Draw the cool face
-            self.game_window.blit(self.face_cool, self.restart_rect.topleft)
-        elif self.game_status == "lost":
-            # Draw the sad face
-            self.game_window.blit(self.face_sad, self.restart_rect.topleft)
+            # Success state using your theme
+            pygame.draw.circle(self.game_window, COLORS['success'], center, button_radius)
+            pygame.draw.circle(self.game_window, COLORS['light_blue'], center, button_radius, 2)
+            
+            # Checkmark
+            check_points = [
+                (center[0]-6, center[1]),
+                (center[0]-2, center[1]+4),
+                (center[0]+6, center[1]-4)
+            ]
+            pygame.draw.lines(self.game_window, COLORS['text_primary'], False, check_points, 3)
+        else:  # lost
+            # Danger state
+            pygame.draw.circle(self.game_window, COLORS['danger'], center, button_radius)
+            pygame.draw.circle(self.game_window, COLORS['secondary_light'], center, button_radius, 2)
+            
+            # X symbol
+            pygame.draw.line(self.game_window, COLORS['text_primary'], 
+                           (center[0]-6, center[1]-6), (center[0]+6, center[1]+6), 3)
+            pygame.draw.line(self.game_window, COLORS['text_primary'], 
+                           (center[0]+6, center[1]-6), (center[0]-6, center[1]+6), 3)
 
-        # Update the restart button area
-        pygame.display.update(self.restart_rect)
-    
     #----------------------------------------------------------------------
     # Utility methods
     #----------------------------------------------------------------------
     
     @staticmethod
-    def get_tile_at_pos(mouse_x: int, mouse_y: int, tile_size: int, buffer: int, x_offset: int) -> tuple[int, int]:
+    def get_tile_at_pos(mouse_x: int, mouse_y: int, tile_size: int, buffer: int) -> tuple[int, int]:
         """
         Convert mouse coordinates to grid coordinates.
         
         Args:
-            mouse_x (int): Mouse x-coordinate
-            mouse_y (int): Mouse y-coordinate (already adjusted for strip height)
+            mouse_x (int): Mouse x-coordinate (already adjusted for grid offset)
+            mouse_y (int): Mouse y-coordinate (already adjusted for grid offset)
             tile_size (int): Size of each tile in pixels
             buffer (int): Space between tiles in pixels
-            x_offset (int): Horizontal offset of the grid
             
         Returns:
             tuple[int, int]: (row, col) coordinates in the grid
         """
-        # Adjust mouse position by the offset
-        adjusted_x = mouse_x - x_offset - buffer
-    
-        # Calculate tile coordinates
-        col = adjusted_x // (tile_size + buffer)
+        # Calculate tile coordinates with buffer consideration
+        col = mouse_x // (tile_size + buffer)
         row = mouse_y // (tile_size + buffer)
     
         return row, col
