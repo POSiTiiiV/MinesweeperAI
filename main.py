@@ -37,7 +37,7 @@ def main():
         elif args.mode == 'random':
             print("Starting game with random solver...")
             # Use the random clicking solver
-            solver.click_random_tiles_to_vicotry()
+            solver.click_random_tiles_to_victory()
 
 
 if __name__ == "__main__":
