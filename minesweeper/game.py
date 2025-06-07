@@ -6,17 +6,18 @@ It handles game initialization, rendering, user input, and game logic.
 """
 import pygame
 import os
-import time
+import sys
 from minesweeper.tile import Tile
 from minesweeper.grid import Grid
 from minesweeper.api import MinesweeperAPI
+
 
 #----------------------------------------------------------------------
 # Game configuration constants
 #----------------------------------------------------------------------
 
-ROWS, COLS = 8, 8
-N_BOMBS = 10
+ROWS, COLS = 32, 32
+N_BOMBS = 99
 BUFFER = 4  # margin/gap between tiles
 STRIP_HEIGHT = 50  # Height of the top strip
 SCREEN_WIDTH = 600  # Fixed screen width
@@ -32,6 +33,14 @@ TILE_SIZE = min(AVAILABLE_WIDTH // COLS, AVAILABLE_HEIGHT // ROWS)
 ACTUAL_GRID_WIDTH = (TILE_SIZE * COLS) + (BUFFER * (COLS + 1))
 ACTUAL_GRID_HEIGHT = (TILE_SIZE * ROWS) + (BUFFER * (ROWS + 1))
 GRID_X_OFFSET = (SCREEN_WIDTH - ACTUAL_GRID_WIDTH) // 2
+
+# Font size calculations
+BASE_FONT_SIZE = 32  # The font size for a standard 16x16 grid
+BASE_GRID_SIZE = 16  # Standard Minesweeper grid dimension
+FONT_SCALE_FACTOR = max(ROWS, COLS) / BASE_GRID_SIZE
+
+# Calculate tile font size based on grid dimensions and tile size
+TILE_FONT_SIZE = max(int(BASE_FONT_SIZE / FONT_SCALE_FACTOR), 12)  # Minimum 12pt
 
 class MinesweeperGame:
     """
@@ -68,7 +77,7 @@ class MinesweeperGame:
         self._load_assets()
         
         # Create API instance
-        self.api = MinesweeperAPI(self)
+        self.api = None
     
     #----------------------------------------------------------------------
     # Initialization methods
@@ -86,7 +95,7 @@ class MinesweeperGame:
             hidden_path=os.path.join(ASSETS_DIR, 'hidden2.png'),
             revealed_path=os.path.join(ASSETS_DIR, 'revealed.png'),
             flagged_path=os.path.join(ASSETS_DIR, 'flag1.png'),
-            font=pygame.font.Font('freesansbold.ttf', 32)
+            font=pygame.font.Font('freesansbold.ttf', TILE_FONT_SIZE)
         )
         
         # Load emoji faces for restart button
@@ -124,19 +133,16 @@ class MinesweeperGame:
     # Main game flow methods
     #----------------------------------------------------------------------
     
-    def run(self) -> None:
+    def setup(self) -> None:
         """
-        Start and run the main game.
+        Set up the game without running the game loop.
         
-        This method initializes the grid, sets up a new game,
-        and enters the main game loop.
-        
-        Returns:
-            None
+        This method initializes the game, creating the grid and UI,
+        but doesn't start the event loop - allowing programmatic control.
         """
         # Fill the entire window with gray background first
         self.game_window.fill((192, 192, 192))
-    
+
         # Create the grid and cache all_tiles
         self.grid, self.all_tiles = Grid.make_grid(
             self.game_window, 
@@ -151,7 +157,21 @@ class MinesweeperGame:
         self.non_bomb_tiles_count = ROWS * COLS - N_BOMBS
         self.revealed_count = 0
         
+        if self.api is None:
+            self.api = MinesweeperAPI(self)
+
         self.setup_new_game()
+        # Draw initial state
+        pygame.display.flip()
+    
+    def run(self) -> None:
+        """
+        Start and run the main game.
+        
+        This method initializes the grid, sets up a new game,
+        and enters the main game loop.
+        """
+        self.setup()
         return self.game_loop()
     
     def game_loop(self) -> None:
@@ -251,7 +271,7 @@ class MinesweeperGame:
         """
         Place bombs on the grid after the first click.
         
-        This ensures that the first clicked tile and its neighbors
+        This ensures that the first clicked tile and its neighbours
         don't have bombs, providing a fair start to the player.
         
         Args:
@@ -260,7 +280,7 @@ class MinesweeperGame:
         Returns:
             list[Tile]: List of tiles containing bombs
         """
-        # Place bombs AFTER first click, ensuring first_tile and neighbors are safe
+        # Place bombs AFTER first click, ensuring first_tile and neighbours are safe
         all_tiles = self.all_tiles
         safe_tiles = [first_tile] + first_tile.neighbours
         placeable_tiles = [tile for tile in all_tiles if tile not in safe_tiles]
@@ -292,8 +312,7 @@ class MinesweeperGame:
         # Mark all hidden tiles (which must be bombs) as flags
         for tile in self.all_tiles:
             if tile.is_hidden and not tile.is_flagged:
-                tile.flag(self.game_window)
-                self.flagged_count += 1
+                self.api.flag_tile(tile.row, tile.col)
         
         # Update the counter display with cool face
         self.draw_counters()

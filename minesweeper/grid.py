@@ -11,7 +11,7 @@ class Grid:
     initialization, bomb placement, and rendering of the game board.
     The Grid class contains methods for:
     - Creating and initializing the grid
-    - Connecting neighboring tiles
+    - Connecting neighbouring tiles
     - Placing bombs randomly
     - Setting numeric values for tiles based on adjacent bombs
     - Drawing the grid to the game window
@@ -48,10 +48,11 @@ class Grid:
     #----------------------------------------------------------------------
 
     @classmethod
-    def make_grid(cls, game_window, rows, cols, tile_size, n_bombs, buffer, y_offset=0, x_offset=0):
+    def make_grid(cls, game_window: pygame.Surface, rows: int, cols: int, tile_size: int, 
+                  n_bombs: int, buffer: int, y_offset=0, x_offset=0) -> tuple['Grid', list[Tile]]:
         """
         Factory method to create a new grid instance with initialized tiles.
-        This handles the grid creation, tile positioning, and neighbor connections.
+        This handles the grid creation, tile positioning, and neighbour connections.
         
         Args:
             game_window (pygame.Surface): Pygame surface where the grid will be drawn
@@ -90,16 +91,16 @@ class Grid:
 
     def connect_neighbours(self) -> None:
         """
-        Connect each tile with its neighboring tiles.
+        Connect each tile with its neighbouring tiles.
         
         This method:
         1. Defines all 8 possible directions (N, NE, E, SE, S, SW, W, NW)
-        2. For each tile, finds valid neighbors in those directions
-        3. Adds references to neighboring tiles in each tile's neighbors list
-        4. Initializes the hidden_neighbours set for tracking unrevealed neighbors
+        2. For each tile, finds valid neighbours in those directions
+        3. Adds references to neighbouring tiles in each tile's neighbours list
+        4. Initializes the hidden_neighbours set for tracking unrevealed neighbours
         
         This establishes the connections needed for revealing adjacent tiles
-        and calculating tile values based on neighboring bombs.
+        and calculating tile values based on neighbouring bombs.
         """
         directions = [
             (-1, -1), # north-west
@@ -155,7 +156,7 @@ class Grid:
             
         This method:
         1. Sets all non-bomb tiles to have value 0 initially
-        2. For each bomb, increments the value of all its non-bomb neighbors
+        2. For each bomb, increments the value of all its non-bomb neighbours
         3. Ensures bomb tiles have a value of None
         
         After this method runs, each non-bomb tile will have a value equal to
@@ -166,18 +167,18 @@ class Grid:
             if tile not in bomb_tiles:
                 tile.value = 0
         
-        # Then increment neighbors of bomb tiles
+        # Then increment neighbours of bomb tiles
         for bomb in bomb_tiles:
             bomb.value = None  # Ensure bombs have None value
-            for neighbor in bomb.neighbours:
-                if neighbor not in bomb_tiles:
-                    neighbor.value += 1
+            for neighbour in bomb.neighbours:
+                if neighbour not in bomb_tiles:
+                    neighbour.value += 1
 
     #----------------------------------------------------------------------
     # Rendering methods
     #----------------------------------------------------------------------
 
-    def draw_grid(self):
+    def draw_grid(self) -> None:
         """
         Draw the entire grid to the game window.
         

@@ -1,6 +1,7 @@
 /.idea
 /.venv
 /images
+/.vscode
 /__pycache__
 __pycache__/
 *.png

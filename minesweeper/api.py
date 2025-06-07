@@ -1,7 +1,9 @@
 import pygame
 from minesweeper.tile import Tile
-from minesweeper.grid import Grid
-from minesweeper.game import MinesweeperGame
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from minesweeper.game import MinesweeperGame
+
 
 class MinesweeperAPI:
     """
@@ -12,7 +14,7 @@ class MinesweeperAPI:
     AI solvers (via method calls).
     """
     
-    def __init__(self, game: MinesweeperGame):
+    def __init__(self, game: 'MinesweeperGame'):
         """
         Initialize the API with a reference to the game instance.
         
@@ -23,11 +25,11 @@ class MinesweeperAPI:
         self.grid = game.grid
         self.game_window = game.game_window
         
-        # Tracking lists for different types of affected tiles
-        self.newly_revealed_tiles = []   # Tiles revealed in current operation
-        self.newly_flagged_tiles = []    # Tiles flagged in current operation
-        self.newly_unflagged_tiles = []  # Tiles unflagged in current operation
-        self.neighbour_updated_tiles = [] # Tiles whose neighbors changed status
+        # Tracking sets for different types of affected tiles
+        self.newly_revealed_tiles: set[Tile] = set()   # Tiles revealed in current operation
+        self.newly_flagged_tiles: set[Tile] = set()    # Tiles flagged in current operation
+        self.newly_unflagged_tiles : set[Tile] = set()  # Tiles unflagged in current operation
+        self.updated_neighbours : set[Tile] = set() # Tiles whose neighbours changed status
 
     #----------------------------------------------------------------------
     # Game state methods - These provide information about the game state
@@ -128,12 +130,12 @@ class MinesweeperAPI:
                          "flagged", "bomb", "win", or "revealed"
                 - game_status: Current game status
                 - tile_value: The revealed tile's value (for "revealed" result)
-                - newly_revealed: Number of tiles revealed (for "revealed" result)
-                - affected_tiles: Dict with lists of affected tile coordinates
+                - newly_revealed_count: Number of tiles revealed (for "revealed" result)
+                - affected_tiles: Dict with sets of affected tile coordinates
         """
-        # Reset tracking lists
-        self.newly_revealed_tiles = []
-        self.neighbour_updated_tiles = []
+        # Reset tracking sets
+        self.newly_revealed_tiles: set[Tile] = set()
+        self.updated_neighbours : set[Tile] = set()
         
         if not self._is_valid_position(row, col):
             return {
@@ -176,15 +178,16 @@ class MinesweeperAPI:
         # Reveal the tile with callbacks to track affected tiles
         bomb_revealed = tile.reveal(
             self.game_window, 
-            count_callback=self._increment_revealed_count
+            reveal_count_callback=self._increment_revealed_count,
+            neighbour_update_callback = self._track_neighbour_update
         )
         
         # Calculate newly revealed tiles count
-        newly_revealed = self.game.revealed_count - before_count
+        newly_revealed_count = self.game.revealed_count - before_count
         
         # Handle bomb revealed
         if bomb_revealed:
-            pygame.display.flip()
+            self.update_display()  # Update before game lost overlay
             self.game.lost()
             return {
                 "result": "bomb",
@@ -192,32 +195,34 @@ class MinesweeperAPI:
                 "bomb_position": (row, col),
                 "affected_tiles": {
                     "revealed": self.newly_revealed_tiles.copy(),
-                    "neighbors_updated": self.neighbour_updated_tiles.copy()
+                    "neighbours_updated": self.updated_neighbours.copy()
                 }
             }
             
         # Check for win
         if self.game.revealed_count == self.game.non_bomb_tiles_count:
+            self.update_display()  # Update before game won overlay
             self.game.won()
             return {
                 "result": "win",
                 "tile_value": tile.value,
-                "newly_revealed": newly_revealed,
+                "newly_revealed_count": newly_revealed_count,
                 "affected_tiles": {
                     "revealed": self.newly_revealed_tiles.copy(),
-                    "neighbors_updated": self.neighbour_updated_tiles.copy()
+                    "neighbours_updated": self.updated_neighbours.copy()
                 },
                 "game_status": "won"
             }
             
         # Normal reveal
+        self.update_display()  # Ensure display is updated
         return {
             "result": "revealed",
             "tile_value": tile.value,
-            "newly_revealed": newly_revealed,
+            "newly_revealed_count": newly_revealed_count,
             "affected_tiles": {
                 "revealed": self.newly_revealed_tiles.copy(),
-                "neighbors_updated": self.neighbour_updated_tiles.copy()
+                "neighbours_updated": self.updated_neighbours.copy()
             },
             "game_status": self.game.game_status
         }
@@ -226,8 +231,8 @@ class MinesweeperAPI:
         """
         Perform a chord action (shift+click) on a numbered tile.
         
-        If the number of flagged neighbors equals the tile's number,
-        reveals all non-flagged neighbors. This is a common shortcut
+        If the number of flagged neighbours equals the tile's number,
+        reveals all non-flagged neighbours. This is a common shortcut
         in Minesweeper that speeds up gameplay.
         
         Args:
@@ -239,12 +244,12 @@ class MinesweeperAPI:
                 - result: "invalid_position", "game_not_active", "not_chordable",
                          "not_satisfied", "bomb", "win", or "chorded"
                 - game_status: Current game status
-                - newly_revealed: Number of tiles revealed (for "chorded" result)
-                - affected_tiles: Dict with lists of affected tile coordinates
+                - newly_revealed_count: Number of tiles revealed (for "chorded" result)
+                - affected_tiles: Dict with sets of affected tile coordinates
         """
-        # Reset tracking lists
-        self.newly_revealed_tiles = []
-        self.neighbour_updated_tiles = []
+        # Reset tracking sets
+        self.newly_revealed_tiles: set[Tile] = set()
+        self.updated_neighbours : set[Tile] = set()
         
         if not self._is_valid_position(row, col):
             return {
@@ -268,36 +273,34 @@ class MinesweeperAPI:
                 "game_status": self.game.game_status
             }
             
-        # Only proceed if flagged neighbors equals tile value
+        # Only proceed if flagged neighbours equals tile value
         if not tile.is_satisfied:
             return {
                 "result": "not_satisfied",
                 "game_status": self.game.game_status
             }
     
+        # Get all non-flagged hidden neighbours
+        to_reveal = [neighbour for neighbour in tile.neighbours 
+                    if not neighbour.is_flagged and neighbour.is_hidden]
+    
         # Track before count
         before_count = self.game.revealed_count
         
-        # Reveal all non-flagged neighbors
-        bomb_revealed = False
-        bomb_position = None
-        
-        for neighbor in tile.neighbours:
-            if not neighbor.is_flagged and neighbor.is_hidden:
-                if neighbor.reveal(
-                    self.game_window,
-                    count_callback=self._increment_revealed_count
-                ):
-                    bomb_revealed = True
-                    bomb_position = (neighbor.row, neighbor.col)
-                    break
+        # Use the batch reveal method
+        bomb_revealed, bomb_position = tile.reveal_batch(
+            to_reveal,
+            self.game_window,
+            reveal_count_callback=self._increment_revealed_count,
+            neighbour_update_callback=self._track_neighbour_update
+        )
         
         # Calculate newly revealed tiles
-        newly_revealed = self.game.revealed_count - before_count
+        newly_revealed_count = self.game.revealed_count - before_count
         
         # Handle if a bomb was revealed
         if bomb_revealed:
-            pygame.display.flip()
+            self.update_display()  # Update before game lost overlay
             self.game.lost()
             return {
                 "result": "bomb",
@@ -305,30 +308,32 @@ class MinesweeperAPI:
                 "bomb_position": bomb_position,
                 "affected_tiles": {
                     "revealed": self.newly_revealed_tiles.copy(),
-                    "neighbors_updated": self.neighbour_updated_tiles.copy()
+                    "neighbours_updated": self.updated_neighbours.copy()
                 }
             }
             
         # Check for win
         if self.game.revealed_count == self.game.non_bomb_tiles_count:
+            self.update_display()  # Update before game won overlay
             self.game.won()
             return {
                 "result": "win",
-                "newly_revealed": newly_revealed,
+                "newly_revealed_count": newly_revealed_count,
                 "affected_tiles": {
                     "revealed": self.newly_revealed_tiles.copy(),
-                    "neighbors_updated": self.neighbour_updated_tiles.copy()
+                    "neighbours_updated": self.updated_neighbours.copy()
                 },
                 "game_status": "won"
             }
             
         # Normal chord
+        self.update_display()  # Ensure display is updated
         return {
             "result": "chorded",
-            "newly_revealed": newly_revealed,
+            "newly_revealed_count": newly_revealed_count,
             "affected_tiles": {
                 "revealed": self.newly_revealed_tiles.copy(),
-                "neighbors_updated": self.neighbour_updated_tiles.copy()
+                "neighbours_updated": self.updated_neighbours.copy()
             },
             "game_status": self.game.game_status
         }
@@ -353,12 +358,12 @@ class MinesweeperAPI:
                 - game_status: Current game status
                 - flagged_count: Updated count of flagged tiles
                 - remaining_bombs: Updated count of remaining bombs
-                - affected_tiles: Dict with lists of affected tile coordinates
+                - affected_tiles: Dict with sets of affected tile coordinates
         """
-        # Reset tracking lists
-        self.newly_flagged_tiles = []
-        self.newly_unflagged_tiles = []
-        self.neighbour_updated_tiles = []
+        # Reset tracking sets
+        self.newly_flagged_tiles: set[Tile] = set()
+        self.newly_unflagged_tiles : set[Tile] = set()
+        self.updated_neighbours : set[Tile] = set()
         
         if not self._is_valid_position(row, col):
             return {
@@ -389,7 +394,7 @@ class MinesweeperAPI:
         tile.flag(
             self.game_window,
             flag_callback=self._track_flag_change,
-            neighbour_callback=self._track_neighbour_update
+            neighbour_update_callback=self._track_neighbour_update
         )
         
         # Update flag counter based on the change
@@ -401,8 +406,8 @@ class MinesweeperAPI:
             result = "flagged"
             
         # Update the counter display
-        self.game.draw_counters()
-        
+        self.update_display()
+    
         return {
             "result": result,
             "flagged_count": self.game.flagged_count,
@@ -410,7 +415,7 @@ class MinesweeperAPI:
             "affected_tiles": {
                 "flagged": self.newly_flagged_tiles.copy(),
                 "unflagged": self.newly_unflagged_tiles.copy(),
-                "neighbors_updated": self.neighbour_updated_tiles.copy()
+                "neighbours_updated": self.updated_neighbours.copy()
             },
             "game_status": self.game.game_status
         }
@@ -427,21 +432,40 @@ class MinesweeperAPI:
         Returns:
             dict[str, any]: Feedback with keys:
                 - result: "restarted"
-                - game_status: "playing"
+                - game_status: Current game status
         """
         # Reset all tracking arrays
-        self.newly_revealed_tiles = []
-        self.newly_flagged_tiles = []
-        self.newly_unflagged_tiles = []
-        self.neighbour_updated_tiles = []
+        self.newly_revealed_tiles: set[Tile] = set()
+        self.newly_flagged_tiles: set[Tile] = set()
+        self.newly_unflagged_tiles : set[Tile] = set()
+        self.updated_neighbours : set[Tile] = set()
         
         self.game.restart()
         self.grid = self.game.grid  # Update grid reference
+        
+        # Ensure display is updated after restart
+        self.update_display()
         
         return {
             "result": "restarted",
             "game_status": "playing"
         }
+    
+    def update_display(self) -> None:
+        """
+        Force a complete display update to reflect current game state.
+        
+        This method ensures the screen reflects the current game state,
+        useful for both human players and AI solvers.
+        """
+        # Redraw the grid
+        self.grid.draw_grid()
+        
+        # Update counters and UI elements
+        self.game.draw_counters()
+        
+        # Update the entire display
+        pygame.display.flip()
     
     #----------------------------------------------------------------------
     # Helper methods - Internal utilities for tracking and validation
@@ -455,8 +479,9 @@ class MinesweeperAPI:
             tile (Tile): The tile being revealed. Its position will be tracked
                         for AI/solver use.
         """
-        self.game.revealed_count += 1
-        self.newly_revealed_tiles.append((tile.row, tile.col))
+        if tile not in self.newly_revealed_tiles:
+            self.game.revealed_count += 1
+            self.newly_revealed_tiles.add((tile.row, tile.col))
 
     def _track_flag_change(self, tile: Tile, was_flagged: bool) -> None:
         """
@@ -467,20 +492,18 @@ class MinesweeperAPI:
             was_flagged (bool): Whether the tile was flagged before the change
         """
         if was_flagged:
-            self.newly_unflagged_tiles.append((tile.row, tile.col))
+            self.newly_unflagged_tiles.add((tile.row, tile.col))
         else:
-            self.newly_flagged_tiles.append((tile.row, tile.col))
+            self.newly_flagged_tiles.add((tile.row, tile.col))
 
     def _track_neighbour_update(self, tile: Tile) -> None:
         """
-        Track a tile whose neighbors changed status.
+        Track a tile whose neighbours changed status.
         
         Args:
-            tile (Tile): The tile whose neighbors were updated
+            tile (Tile): The tile whose neighbours were updated
         """
-        pos = (tile.row, tile.col)
-        if pos not in self.neighbour_updated_tiles:
-            self.neighbour_updated_tiles.append(pos)
+        self.updated_neighbours.add((tile.row, tile.col))
     
     def _is_valid_position(self, row: int, col: int) -> bool:
         """
