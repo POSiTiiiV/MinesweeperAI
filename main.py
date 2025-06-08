@@ -4,41 +4,33 @@ from minesweeper.game import MinesweeperGame
 from minesweeper.ai.solver import MinesweeperSolver
 
 
-def parse_arguments():
-    """Parse command line arguments for game mode selection."""
-    parser = argparse.ArgumentParser(description="Minesweeper Game with AI")
-    parser.add_argument('--mode', type=str, choices=['human', 'ai', 'random'],
-                        default='human', help='Game mode: human, ai, or random')
-    return parser.parse_args()
-
-
 def main():
-    """Main entry point for the game."""
-    args = parse_arguments()
+    parser = argparse.ArgumentParser(description='Run Minesweeper game')
+    parser.add_argument('--mode', choices=['human', 'ai'], 
+                       default='human', help='Game mode')
+    parser.add_argument('--mobile', action='store_true', 
+                       help='Run in mobile mode')
     
-    # Initialize the game
+    args = parser.parse_args()
+    
+    # Add mobile flag to sys.argv for the game to detect
+    if args.mobile:
+        sys.argv.append('--mobile')
+    
+    # Create and run the game
     game = MinesweeperGame()
     
-    # Choose mode based on argument
     if args.mode == 'human':
         print("Starting game in human mode. Good luck!")
         game.run()
-    else:
+    elif args.mode == 'ai':
+        print("Starting game with AI solver...")
         # Start the game without running the full game loop
         game.setup()
         
         # Create solver with game API
         solver = MinesweeperSolver(game.api)
-        
-        if args.mode == 'ai':
-            print("Starting game with AI solver...")
-            # Use the intelligent solver
-            solver.start()
-        elif args.mode == 'random':
-            print("Starting game with random solver...")
-            # Use the random clicking solver
-            solver.click_random_tiles_to_vicotry()
-
+        solver.start()
 
 if __name__ == "__main__":
     main()
