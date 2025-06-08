@@ -221,7 +221,6 @@ class Tile:
                 spike_length = bomb_radius // 2
                 spike_width = 2 if IS_MOBILE else 1
                 for angle in [0, 45, 90, 135, 180, 225, 270, 315]:
-                    import math
                     end_x = center_x + spike_length * math.cos(math.radians(angle))
                     end_y = center_y + spike_length * math.sin(math.radians(angle))
                     pygame.draw.line(game_window, COLORS['text_primary'], 
